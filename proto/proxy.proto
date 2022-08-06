@@ -1,0 +1,23 @@
+syntax = "proto3";
+package netavark_proxy;
+
+service NetavarkProxy {
+  rpc GetLease(NetworkConfig) returns (DHCPReply) {}
+}
+message NetworkConfig {
+  string iface = 1;
+}
+message DHCPReply {
+  string ip = 1;
+}
+message DhcpV4Lease {
+  Ipv4Addr siaddr = 1;
+  Ipv4Addr yiaddr = 2;
+  uint32 t1 = 3;
+  uint32 t2 = 4;
+  uint32 lease_time = 5;
+}
+
+message Ipv4Addr {
+  bytes bytes = 1;
+}

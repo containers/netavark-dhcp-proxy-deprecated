@@ -1,0 +1,25 @@
+[package]
+name = "netavark_proxy"
+version = "0.1.0"
+edition = "2018"
+
+[[bin]]
+name = "server"
+path = "src/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
+
+[dependencies]
+mozim = { git = "https://github.com/nispor/mozim"}
+tonic = "0.8"
+prost = "0.11"
+futures-core = "0.3"
+futures-util = "0.3"
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-stream = "0.1"
+log = "0.4.17"
+
+[build-dependencies]
+tonic-build = "0.8"
