@@ -7,11 +7,12 @@ use netavarkproxy::netavark_proxy_client::NetavarkProxyClient;
 use netavarkproxy::{NetworkConfig};
 
 #[tokio::main]
+#[allow(unused)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = NetavarkProxyClient::connect("http://[::1]:10000").await?;
     let response = client.get_lease(
         Request::new(NetworkConfig {
-            iface: String::from("macvlan")
+            iface: String::from("wlp5s0")
         }
     ))
         .await?;
