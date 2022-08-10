@@ -11,8 +11,10 @@ path = "src/server.rs"
 name = "client"
 path = "src/client.rs"
 
+
 [dependencies]
-mozim = { git = "https://github.com/nispor/mozim"}
+#mozim = { path= "../mozim" }
+mozim = { git= "https://github.com/nispor/mozim" }
 tonic = "0.8"
 prost = "0.11"
 futures-core = "0.3"
@@ -20,6 +22,7 @@ futures-util = "0.3"
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tokio-stream = "0.1"
 log = "0.4.17"
+nispor = "1.2.7"
 
 [build-dependencies]
 tonic-build = "0.8"
