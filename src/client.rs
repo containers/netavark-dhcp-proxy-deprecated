@@ -1,10 +1,11 @@
+//    ** This client represents the netavark binary which will establish a connection **
 use tonic::{Request};
-pub mod netavarkproxy {
+pub mod g_rpc {
     tonic::include_proto!("netavark_proxy");
 }
 
-use netavarkproxy::netavark_proxy_client::NetavarkProxyClient;
-use netavarkproxy::{NetworkConfig};
+use g_rpc::netavark_proxy_client::NetavarkProxyClient;
+use g_rpc::{NetworkConfig};
 
 #[tokio::main]
 #[allow(unused)]
@@ -16,6 +17,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     ))
         .await?;
-    println!("Response {:?}", response);
+    println!("Response {:#?}", response);
     Ok(())
 }

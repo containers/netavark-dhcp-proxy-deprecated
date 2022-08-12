@@ -1,5 +1,3 @@
-mod server;
-mod client;
 fn main() {
-    print!("");
+   println!("Main.rs")
 }
