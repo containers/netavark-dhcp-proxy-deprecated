@@ -1,7 +1,8 @@
 [package]
 name = "netavark_proxy"
+authors = ["Jack Baude <baude022@umn.edu>"]
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "server"
