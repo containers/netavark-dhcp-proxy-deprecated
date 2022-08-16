@@ -10,7 +10,6 @@ use g_rpc::{DhcpV4Lease as NetavarkLease, NetworkConfig, Ipv4Addr as NetavarkIpv
 use g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
 
 pub mod dhcp_utils;
-use dhcp_utils::{purge_dhcp_ip_route, apply_dhcp_ip_route};
 
 const POLL_WAIT_TIME: isize = 5;
 
@@ -27,7 +26,6 @@ impl NetavarkProxy for NetavarkProxyService {
         //Spawn a new thread to avoid tokio runtime issues
         std::thread::spawn(move || {
             let iface: String = request.into_inner().iface;
-            purge_dhcp_ip_route(&iface);
             let config = match DhcpV4Config::new(&iface) {
                 Ok(config) => config,
                 Err(err) => return Err(tonic::Status::new(Internal, err.to_string()))
@@ -43,7 +41,7 @@ impl NetavarkProxy for NetavarkProxyService {
                 for event in events {
                     match client.process(event) {
                         Ok(Some(l)) => {
-                            apply_dhcp_ip_route(&iface, &l);
+                            self.0.
                             lease = Ok(Some(<NetavarkLease as From<MozimLease>>::from(l)));
                             break;
                         },
@@ -51,7 +49,6 @@ impl NetavarkProxy for NetavarkProxyService {
                             lease = Ok(None);
                         },
                         Err(err) => {
-                            purge_dhcp_ip_route(&iface);
                             lease = Err(err);
                         }
                     };
