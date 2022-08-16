@@ -13,7 +13,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = NetavarkProxyClient::connect("http://[::1]:10000").await?;
     let response = client.get_lease(
         Request::new(NetworkConfig {
-            iface: String::from("wlp5s0")
+            iface: String::from("wlp5s0"),
+            lease: None,
+            version: 1
         }
     ))
         .await?;
