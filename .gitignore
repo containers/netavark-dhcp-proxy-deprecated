@@ -1,3 +1,4 @@
 /target
 Cargo.lock
 .idea
+src/grpc/netavark_proxy.rs
