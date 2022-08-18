@@ -1,11 +1,12 @@
 //    ** This client represents the netavark binary which will establish a connection **
 use tonic::{Request};
 pub mod g_rpc {
-    tonic::include_proto!("netavark_proxy");
+    include!("grpc/netavark_proxy.rs");
 }
 
 use g_rpc::netavark_proxy_client::NetavarkProxyClient;
 use g_rpc::{NetworkConfig};
+use netavark_proxy::cache::g_rpc::{MacAddress, Version};
 
 #[tokio::main]
 #[allow(unused)]
@@ -15,7 +16,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Request::new(NetworkConfig {
             iface: String::from("wlp5s0"),
             lease: None,
-            version: 1
+            mac_addr: MacAddress::default(),
+            version: 0
         }
     ))
         .await?;

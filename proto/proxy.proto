@@ -2,56 +2,68 @@ syntax = "proto3";
 package netavark_proxy;
 
 service NetavarkProxy {
-  rpc GetLease(NetworkConfig) returns (DhcpV4Lease) {}
+  rpc GetLease(NetworkConfig) returns (Lease) {}
   rpc TearDown(NetworkConfig) returns (OperationResponse) {}
 }
 // Netavark sends the proxy the Network Configuration that it wants to setup
 message NetworkConfig {
   string iface = 1;
   optional Lease lease = 2;
-  uint32 version = 4;
+  MacAddress mac_addr = 3;
+  Version version = 4;
 }
-// A lease can either be a Ipv4 or Ipv6 lease
+// Lease can either contain a IPv4 or IPv6 DHCP lease, and the common IP information
 message Lease {
-  optional DhcpV4Lease v4 = 1;
-  optional DhcpV6Lease v6 = 2;
+  IPResponse IpResponse = 1;
+  optional DhcpV4Lease v4 = 2;
+  optional DhcpV6Lease v6 = 3;
+
+}
+// Common ip information shared between DHCPv4 and DHCPv6
+message IPResponse {
+  uint32 t1 = 1;
+  uint32 t2 = 2;
+  uint32 lease_time = 3;
+  uint32  mtu = 4;
+  optional string domain_name = 5;
+  MacAddress mac_addr = 6;
 }
 
 message DhcpV4Lease {
   Ipv4Addr siaddr = 1;
   Ipv4Addr yiaddr = 2;
-  uint32 t1 = 3;
-  uint32 t2 = 4;
-  uint32 lease_time = 5;
   Ipv4Addr srv_id = 6;
   Ipv4Addr subnet_mask = 7;
-  optional Ipv4Addr broadcast_addr = 8;
+  Ipv4Addr broadcast_addr = 8;
   repeated Ipv4Addr dns_servers = 9;
   repeated Ipv4Addr gateways = 10;
   repeated Ipv4Addr ntp_servers = 11;
-  optional uint32 mtu = 12;
-  optional string host_name = 13;
-  optional string domain_name = 14;
-  MacAddress mac_addr = 15;
-  uint32 version = 16;
-
+  string host_name = 13;
 }
+
 // Todo implement v6 lease
 message DhcpV6Lease {
 
 }
+
 // Response to netavark on successful teardown
 message OperationResponse {
   bool success = 1;
 }
 
+enum Version {
+  V4 = 0;
+  V6 = 1;
+}
+
 message MacAddress {
   bytes bytes = 1;
 }
+
 message Ipv4Addr {
-  bytes v4 = 1;
+  bytes octets = 1;
 }
 
 message Ipv6Addr {
-  bytes v6 = 1;
+  bytes octets = 1;
 }
