@@ -1,15 +1,22 @@
 # Netavark DHCP Proxy Server
 
-This binary crate aims to automate the macvlan dhcp issue for netavark. This binary should be 
-able to make DHCP DORA requests on behalf of netavark. Note that this is not a DHCP server, rather
-a proxy to communicate with netavark network config and DHCP server. This is the main [issue](https://github.com/containers/netavark/issues/152).
+### Short Summary
 
-### Task List
-- [x] Setup g_rpc sever - [tonic](https://github.com/hyperium/tonic) 
-- [x] DHCP DORA with event listener using [mozim](https://github.com/nispor/mozim)
-- [ ] Call back netavark if network config needs to change
-- [ ] Enable DHCPv6 DORA
+Adding the macvlan functionality to Podman’s new network stack
 
+### Objective
+
+The old network stack that used container-networking-plugins (CNI) had the ability to configure a macvlan network.  The primary purpose of the macvlan set up was to provide the container with a routable IP address so Network Address Translation (NAT) and port mapping was not needed. This functionality has not been added to the new network stack (netavark) yet.
+
+One of the challenges of the macvlan set up is that containers do not typically have a full set of network tools installed in them.  And most certainly, very few have things like dhclient. And even if they did, they will usually lack an init system that could deal with re-leasing IP addresses.  The solution for CNI was to create a separate binary that acted as a “dhcp-proxy” for macvlan containers.  The dhcp-proxy was generally run by systemd and it performed the DHCP operations needed by the container.  This lease information that was then provided by the DHCP server was then statically assigned to the container by Podman.
+
+For the new implementation, we will largely follow the same architecture but will attempt to provide improvements as needed.
+
+### Use case
+
+I have a web-based service that runs from a container.  While I know I can expose the service from the container host using port-mapping, I do not want users to have to specify any port related information when communicating with the web service.  I want the container to appear as if it were any other host on the network to its users.
+
+![topo](img/topo.png)
 
 
 
