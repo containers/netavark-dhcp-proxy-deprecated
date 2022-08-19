@@ -19,15 +19,19 @@ I have a web-based service that runs from a container.  While I know I can expos
 ![topo](img/topo.png)
 
 ## Build
-```cargo build```
+```
+make build
+make build-release
+```
 
-## Run
-Server
-```cargo run --bin server```
-
-Client
-```cargo run --bin client```
+## Server and client
+These commands run the server and client demo
+```
+make server
+make client
+```
 
 ## Test
-
-```cargo test```
+```
+make test
+```
