@@ -18,6 +18,16 @@ I have a web-based service that runs from a container.  While I know I can expos
 
 ![topo](img/topo.png)
 
+## Build
+```cargo build```
 
+## Run
+Server
+```cargo run --bin server```
 
- 
+Client
+```cargo run --bin client```
+
+## Test
+
+```cargo test```
