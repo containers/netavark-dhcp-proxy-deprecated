@@ -16,6 +16,9 @@ server:
 client:
 	cargo run  -j 4 --bin client
 
+test:
+	cargo test
+
 help:
 	@printf '%s\n' \
 		'Make commands:'\
