@@ -1,6 +1,6 @@
 extern crate core;
 
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
 
 fn main() {
     let builder = tonic_build::configure()
@@ -18,10 +18,10 @@ fn main() {
         .type_attribute("netavark_proxy.Ipv4Addr", "#[derive(serde::Deserialize)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(Eq)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(Hash)]")
-        .out_dir(PathBuf::from("src/grpc/"));
+        .out_dir(PathBuf::from("proto-build"));
 
     builder
-        .compile(&["proto/proxy.proto"], &["proto"])
-        .unwrap_or_else(|e| panic!("Failed to compile proto {:?}", e));
+        .compile(&[Path::new("proto/proxy.proto")], &[Path::new("proto")])
+        .unwrap_or_else(|e| panic!("Failed at builder: {:?}", e.to_string()));
 
 }

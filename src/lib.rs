@@ -1,16 +1,20 @@
 pub mod cache;
 pub mod g_rpc {
-    include!("grpc/netavark_proxy.rs");
+    include!("../proto-build/netavark_proxy.rs");
     use mozim::DhcpV4Lease as MozimV4Lease;
     impl From<MozimV4Lease> for Lease {
         fn from(l: MozimV4Lease) -> Lease {
+            let domain_name = match l.domain_name{
+                None => String::from(""),
+                Some(l) => l
+            };
             Lease {
                 ip_response: Some(IpResponse {
                     t1: l.t1,
                     t2: l.t2,
                     lease_time: l.lease_time,
                     mtu: 0,
-                    domain_name: l.domain_name,
+                    domain_name,
                     mac_addr: None,
                 }),
                 v4: Some(DhcpV4Lease {
