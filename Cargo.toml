@@ -3,6 +3,8 @@ name = "netavark_proxy"
 authors = ["Jack Baude <baude022@umn.edu>"]
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/jackbaude/netavark-dhcp-proxy"
+description = "Adding the macvlan functionality to Podman’s new network stack"
 
 [[bin]]
 name = "server"
@@ -11,7 +13,6 @@ path = "src/server.rs"
 [[bin]]
 name = "client"
 path = "src/client.rs"
-
 
 [dependencies]
 serde = { version = "1.0.143", features = ["derive"] }
