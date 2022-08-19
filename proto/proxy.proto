@@ -8,15 +8,15 @@ service NetavarkProxy {
 // Netavark sends the proxy the Network Configuration that it wants to setup
 message NetworkConfig {
   string iface = 1;
-  optional Lease lease = 2;
+  Lease lease = 2;
   MacAddress mac_addr = 3;
   Version version = 4;
 }
 // Lease can either contain a IPv4 or IPv6 DHCP lease, and the common IP information
 message Lease {
   IPResponse IpResponse = 1;
-  optional DhcpV4Lease v4 = 2;
-  optional DhcpV6Lease v6 = 3;
+  DhcpV4Lease v4 = 2;
+  DhcpV6Lease v6 = 3;
 
 }
 // Common ip information shared between DHCPv4 and DHCPv6
@@ -25,7 +25,7 @@ message IPResponse {
   uint32 t2 = 2;
   uint32 lease_time = 3;
   uint32  mtu = 4;
-  optional string domain_name = 5;
+  string domain_name = 5;
   MacAddress mac_addr = 6;
 }
 
