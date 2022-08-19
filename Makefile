@@ -8,6 +8,7 @@ build:
 
 clean:
 	cargo clean
+	rm -f proto-build/netavark_proxy.rs
 
 server:
 	cargo run -j 4 --bin server
