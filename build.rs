@@ -18,6 +18,7 @@ fn main() {
         .type_attribute("netavark_proxy.Ipv4Addr", "#[derive(serde::Deserialize)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(Eq)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(Hash)]")
+        .type_attribute("netavark_proxy.Lease", "#[derive(Debug)]")
         .out_dir(PathBuf::from("src/grpc/"));
 
     builder

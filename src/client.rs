@@ -3,7 +3,6 @@ use tonic::{Request};
 pub mod g_rpc {
     include!("grpc/netavark_proxy.rs");
 }
-
 use g_rpc::netavark_proxy_client::NetavarkProxyClient;
 use g_rpc::{NetworkConfig};
 use netavark_proxy::cache::g_rpc::{MacAddress, Version};
@@ -16,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Request::new(NetworkConfig {
             iface: String::from("wlp5s0"),
             lease: None,
-            mac_addr: MacAddress::default(),
+            mac_addr: None,
             version: 0
         }
     ))
