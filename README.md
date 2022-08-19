@@ -20,18 +20,15 @@ I have a web-based service that runs from a container.  While I know I can expos
 
 ## Build
 ```
-make build
-make build-release
+$ make
+$ make build-release
 ```
 
-## Server and client
-These commands run the server and client demo
-```
-make server
-make client
+## Testing
 ```
 
-## Test
-```
-make test
+You can run make test to run both unit and integration tests.  There are also make targets
+for `unit` and `integration` that can be run separately.
+
+$ make test
 ```
