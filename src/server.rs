@@ -1,23 +1,16 @@
 use tokio;
 use tonic::{Response, Status, transport::Server, Code::Internal, Request};
-use mozim::{DhcpError, DhcpV4Client, DhcpV4Config, DhcpV4Lease as MozimV4Lease};
-
-pub mod g_rpc {
-    include!("grpc/netavark_proxy.rs");
-}
-
-use g_rpc::{
-    Lease as NetavarkLease, DhcpV4Lease as NetavarkV4Lease, NetworkConfig, IpResponse,
-    Ipv4Addr as NetavarkIpv4Addr, MacAddress, OperationResponse
-};
-use g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
-
-use netavark_proxy::cache::{LeaseCache};
+use mozim::{DhcpError, DhcpV4Client, DhcpV4Config, DhcpV4Lease as MozimV4Lease, ErrorKind};
+use tonic::Code::InvalidArgument;
+use netavark_proxy::g_rpc::{Lease as NetavarkLease, NetworkConfig, OperationResponse};
+use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
+use netavark_proxy::cache::LeaseCache;
 
 const POLL_WAIT_TIME: isize = 5;
 
 #[derive(Debug)]
 struct NetavarkProxyService(LeaseCache);
+
 
 // gRPC request and response methods
 #[tonic::async_trait]
@@ -27,40 +20,44 @@ impl NetavarkProxy for NetavarkProxyService {
         request: Request<NetworkConfig>,
     ) -> Result<Response<NetavarkLease>, Status> {
         log::debug!("Request from client: {:?}", request.remote_addr());
-
         //Spawn a new thread to avoid tokio runtime issues
         std::thread::spawn(move || {
+            // Set up some common values
             let network_config: NetworkConfig = request.into_inner();
-            let mut client = match get_client(network_config) {
+            let _mac_addr = match &network_config.mac_addr {
+                None => return Err(Status::new(InvalidArgument, "No mac address supplied")),
+                Some(m) => m
+            };
+
+            // DHCP client will be in charge of making the DORA requests to the DHCP server
+            let mut client = match get_client(&network_config) {
                 Ok(c) => c,
                 Err(e) => return Err(Status::new(Internal, e.to_string()))
             };
 
-            // assume that there is no lease and no error finding one
+            // Begin processing the DHCP events to grab a lease
             let mut lease: Result<Option<NetavarkLease>, DhcpError> = Ok(None);
-
+            // While a lease has not been found start processing the DHCP events
             while let Ok(None) = lease {
                 let events = client.poll(POLL_WAIT_TIME).unwrap();
                 for event in events {
                     match client.process(event) {
-                        //No DhcpError and a lease is successfully found.
-                        Ok(Some(l)) => {
-                            lease = Ok(Some(<NetavarkLease as From<MozimV4Lease>>::from(l)));
-                        }
-                        //No DhcpError but no lease found
-                        Ok(None) => {
-                            lease = Ok(None);
+                        // Lease successfully found
+                        Ok(Some(new_lease)) => {
+                            // TODO call the cache add lease method on the cache.
+                            lease = Ok(Some(<NetavarkLease as From<MozimV4Lease>>::from(new_lease)));
                         }
                         Err(err) => {
                             lease = Err(err);
                         }
+                        Ok(None) => {}
                     };
                 }
             }
             return match lease {
                 Ok(Some(l)) => Ok(Response::new(l)),
-                Ok(None) => Ok(Response::new(<NetavarkLease as From<MozimV4Lease>>::from(MozimV4Lease::default()))),
-                Err(err) => Err(Status::new(Internal, err.to_string()))
+                Err(err) => Err(Status::new(Internal, err.to_string())),
+                _ => Err(Status::new(Internal, "No lease was found")),
             };
         }).join().expect("Error joining thread")
     }
@@ -79,8 +76,10 @@ impl NetavarkProxy for NetavarkProxyService {
     }
 }
 
-fn get_client(network_config: NetworkConfig) -> Result<DhcpV4Client, DhcpError> {
-    let iface: String = network_config.iface;
+// Get a DHCP client based on the ip version
+fn get_client(network_config: &NetworkConfig) -> Result<DhcpV4Client, DhcpError> {
+    let iface: &String = &network_config.iface;
+    // Proto enumerations define a const int to each type (e.g. V4 = 0, V6 = 1).
     match network_config.version {
         //V4
         0 => {
