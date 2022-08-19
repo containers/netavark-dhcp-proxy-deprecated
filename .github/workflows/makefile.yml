@@ -16,6 +16,9 @@ jobs:
     
     - name: Install proto
       run: sudo apt update && sudo apt upgrade -y && sudo apt install -y protobuf-compiler libprotobuf-dev
+
+    - name: Install bats
+      run: sudo apt-get install -y bats
       
     - name: Run build
       run: make build
