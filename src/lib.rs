@@ -29,6 +29,7 @@ pub mod g_rpc {
         }
     }
 
+
     fn handle_ip_vectors(ip: Option<Vec<std::net::Ipv4Addr>>) -> Vec<Ipv4Addr> {
         let mut ips: Vec<Ipv4Addr> = Vec::new();
         if let Some(j) = ip {
@@ -57,6 +58,13 @@ pub mod g_rpc {
             return Ipv4Addr {
                 octets: Vec::from([0, 0, 0, 0])
             };
+        }
+    }
+    impl MacAddress {
+        pub fn new(bytes: Vec<u8>) -> Self {
+            MacAddress {
+                bytes
+            }
         }
     }
 }

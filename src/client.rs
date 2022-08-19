@@ -1,12 +1,7 @@
 //    ** This client represents the netavark binary which will establish a connection **
-use tonic::{Request};
-pub mod g_rpc {
-    include!("grpc/netavark_proxy.rs");
-}
-use g_rpc::netavark_proxy_client::NetavarkProxyClient;
-use g_rpc::{NetworkConfig};
-use netavark_proxy::cache::g_rpc::{MacAddress, Version};
-
+use tonic::Request;
+use netavark_proxy::g_rpc::{MacAddress, NetworkConfig};
+use netavark_proxy::g_rpc::netavark_proxy_client::NetavarkProxyClient;
 #[tokio::main]
 #[allow(unused)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -15,11 +10,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Request::new(NetworkConfig {
             iface: String::from("wlp5s0"),
             lease: None,
-            mac_addr: None,
+            mac_addr: Some(MacAddress::new(vec![52, 232, 148, 202, 144, 180])),
             version: 0
         }
     ))
         .await?;
-    println!("Response {:#?}", response);
+    // This complies fine but inspection thinks `request.into_inner()` does not implement debug
+    println!("Response {:#?}", response.into_inner());
     Ok(())
 }
