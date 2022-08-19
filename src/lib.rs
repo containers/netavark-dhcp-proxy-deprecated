@@ -33,7 +33,6 @@ pub mod g_rpc {
         }
     }
 
-
     fn handle_ip_vectors(ip: Option<Vec<std::net::Ipv4Addr>>) -> Vec<Ipv4Addr> {
         let mut ips: Vec<Ipv4Addr> = Vec::new();
         if let Some(j) = ip {
@@ -64,11 +63,65 @@ pub mod g_rpc {
             };
         }
     }
+
     impl MacAddress {
-        pub fn new(bytes: Vec<u8>) -> Self {
-            MacAddress {
-                bytes
+        /// Create a new instance of a mac address
+        pub fn new(addr: String) -> Self {
+            MacAddress { addr }
+        }
+        /// Validate the mac address by decoding it then encoding and checking its the same as the
+        /// original
+        pub fn validate(&self) -> bool {
+            let bytes = match self.decode_address_from_hex() {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    log::debug!("{}", e.to_string());
+                    return false;
+                }
+            };
+            if MacAddress::encode_address_to_hex(bytes) == self.addr {
+                return true;
             }
+            false
+        }
+
+        fn decode_address_from_hex(&self) -> Result<Vec<u8>, std::io::Error> {
+            let bytes: Result<Vec<u8>, _> = self
+                .addr
+                .split(|c| c == ':' || c == '-')
+                .into_iter()
+                .map(|b| u8::from_str_radix(b, 16))
+                .collect();
+
+            let result = match bytes {
+                Ok(bytes) => {
+                    if bytes.len() != 6 {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("invalid mac length for address: {}", self.addr),
+                        ));
+                    }
+                    bytes
+                }
+                Err(e) => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("unable to parse mac address {}: {}", self.addr, e),
+                    ));
+                }
+            };
+
+            Ok(result)
+        }
+
+        fn encode_address_to_hex(bytes: Vec<u8>) -> String {
+            let address: String = bytes
+                .iter()
+                .map(|x| format!("{:02x}", x))
+                .collect::<Vec<String>>()
+                .join(":");
+
+            address
         }
     }
 }

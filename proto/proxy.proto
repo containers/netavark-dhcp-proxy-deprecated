@@ -8,7 +8,6 @@ service NetavarkProxy {
 // Netavark sends the proxy the Network Configuration that it wants to setup
 message NetworkConfig {
   string iface = 1;
-  Lease lease = 2;
   MacAddress mac_addr = 3;
   Version version = 4;
 }
@@ -57,7 +56,7 @@ enum Version {
 }
 
 message MacAddress {
-  bytes bytes = 1;
+  string addr = 1;
 }
 
 message Ipv4Addr {
