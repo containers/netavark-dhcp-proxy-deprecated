@@ -1,10 +1,9 @@
+
 use crate::g_rpc::{Lease as NetavarkLease, MacAddress};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io;
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 
 /// Path to the lease json cache
 pub const XDGRUNTIME: &str = "/run/user/1000/nv-leases";
@@ -13,8 +12,10 @@ pub const XDGRUNTIME: &str = "/run/user/1000/nv-leases";
 /// It also stores a locked path buffer to change the FS cache
 #[derive(Debug)]
 pub struct LeaseCache {
-    mem: Mutex<HashMap<MacAddress, Vec<NetavarkLease>>>,
-    path: Mutex<PathBuf>,
+    // Memory cannot hold the MacAddress structure because serde_json decides to fail if T contains
+    // a map with non-string keys.
+    mem: HashMap<String, Vec<NetavarkLease>>,
+    path: PathBuf,
 }
 
 impl LeaseCache {
@@ -33,8 +34,8 @@ impl LeaseCache {
         let path = dir.as_deref().unwrap_or(XDGRUNTIME);
         OpenOptions::new().write(true).create(true).open(path)?;
         Ok(LeaseCache {
-            mem: Mutex::new(HashMap::new()),
-            path: Mutex::new(PathBuf::from(path)),
+            mem: HashMap::new(),
+            path: PathBuf::from(path),
         })
     }
 
@@ -47,18 +48,18 @@ impl LeaseCache {
     ///
     /// returns: Result<(), Error>
     ///
-    /// On success this the method will return Ok(). On a failure it will return an IO error due to
+    /// On success this the method will return Ok. On a failure it will return an IO error due to
     /// not being able to write or read the file system cache
-    pub fn add_lease(&self, mac_addr: &MacAddress, lease: &NetavarkLease) -> Result<(), io::Error> {
-        let mut cache = self.mem.lock().unwrap();
+    pub fn add_lease(&mut self, mac_addr: &MacAddress, lease: &NetavarkLease) -> Result<(), io::Error> {
+        let cache = &mut self.mem;
         // write to the memory cache
-        cache.insert(mac_addr.clone(), vec![lease.clone()]);
+        // HashMap::insert uses a owned reference and key, must clone the referenced mac address and lease
+        cache.insert(mac_addr.clone().addr, vec![lease.clone()]);
         // write updated memory cache to the file system
         self.save_memory_to_fs()
     }
 
-    /// When a mac address lease information changes significantly, update the cache to reflect the
-    /// changes
+    /// When lease information changes significantly, update the cache to reflect the changes
     ///
     /// # Arguments
     ///
@@ -67,16 +68,16 @@ impl LeaseCache {
     ///
     /// returns: Result<(), Error>
     ///
-    /// On success returns Ok(). On failure returns an io error, likely means that the it could not
+    /// On success returns Ok. On failure returns an io error, likely means that the it could not
     /// find the file
     pub fn update_lease(
-        &self,
+        &mut self,
         mac_addr: MacAddress,
         lease: NetavarkLease,
     ) -> Result<(), io::Error> {
-        let mut cache = self.mem.lock().unwrap();
+        let cache = &mut self.mem;
         // write to the memory cache
-        cache.insert(mac_addr, vec![lease.clone()]);
+        cache.insert(mac_addr.addr, vec![lease.clone()]);
         // write updated memory cache to the file system
         self.save_memory_to_fs()
     }
@@ -86,16 +87,17 @@ impl LeaseCache {
     /// # Arguments
     ///
     /// * `mac_addr`: Mac address of the container
-    pub fn remove_lease(&self, mac_addr: MacAddress) -> Result<(), io::Error> {
-        let mut cache = self.mem.lock().unwrap();
-        cache.remove(&mac_addr);
+    pub fn remove_lease(&mut self, mac_addr: MacAddress) -> Result<(), io::Error> {
+        let mem = &mut self.mem;
+        // the remove function uses a reference key, so we borrow and dereference the MadAddress
+        mem.remove(&*mac_addr.addr);
         // write updated memory cache to the file system
         self.save_memory_to_fs()
     }
 
     /// Clean up the memory and file system on tear down of the proxy server
-    pub fn teardown(&self) -> Result<(), io::Error> {
-        self.mem.lock().unwrap().clear();
+    pub fn teardown(&mut self) -> Result<(), io::Error> {
+        self.mem.clear();
         let path = Path::new(XDGRUNTIME);
         return match OpenOptions::new().truncate(true).open(path) {
             Ok(_) => Ok(()),
@@ -107,10 +109,8 @@ impl LeaseCache {
     /// then write the memory map to the file. This method will be called any the lease memory cache
     /// changes (new lease, remove lease, update lease)
     fn save_memory_to_fs(&self) -> std::io::Result<()> {
-        let path_binding = self.path.lock().unwrap();
-        let path = path_binding.deref();
-        let mem_binding = self.mem.lock().unwrap();
-        let mem = mem_binding.deref();
+        let path = &self.path;
+        let mem = &self.mem;
         // Write and truncate options set to true to clear the file
         let file = OpenOptions::new().write(true).truncate(true).open(path)?;
         serde_json::to_writer_pretty(&file, &mem)?;
@@ -121,8 +121,8 @@ impl LeaseCache {
 impl Default for LeaseCache {
     fn default() -> Self {
         LeaseCache {
-            mem: Mutex::new(HashMap::<MacAddress, Vec<NetavarkLease>>::new()),
-            path: Mutex::from(PathBuf::from(XDGRUNTIME)),
+            mem: HashMap::<String, Vec<NetavarkLease>>::new(),
+            path: PathBuf::from(XDGRUNTIME),
         }
     }
 }

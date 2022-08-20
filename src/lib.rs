@@ -2,18 +2,44 @@ pub mod cache;
 pub mod g_rpc {
     include!("../proto-build/netavark_proxy.rs");
     use mozim::DhcpV4Lease as MozimV4Lease;
+    impl Lease {
+        /// Add mac address to a lease
+        pub fn add_mac_address(&mut self, mac_addr: &MacAddress) {
+            if let Some(ip_rep) = &mut self.ip_response {
+                ip_rep.mac_addr = Option::from(mac_addr.clone());
+            }
+        }
+        /// Update the domain name of the lease
+        pub fn add_domain_name(&mut self, domain_name: String) {
+            if let Some(ip_rep) = &mut self.ip_response {
+                ip_rep.domain_name = domain_name;
+            }
+        }
+    }
+    impl DhcpV4Lease {
+        /// update the host name. This is only applicable to dhcpv4 leases
+        pub fn add_host_name(&mut self, host_name: String) {
+            self.host_name = host_name;
+        }
+    }
     impl From<MozimV4Lease> for Lease {
         fn from(l: MozimV4Lease) -> Lease {
+            // Since these fields are optional as per mozim. Match them first and then set them
             let domain_name = match l.domain_name{
                 None => String::from(""),
                 Some(l) => l
             };
+            let mtu = match l.mtu {
+                None => 0,
+                Some(i) => i
+            } as u32;
+
             Lease {
                 ip_response: Some(IpResponse {
                     t1: l.t1,
                     t2: l.t2,
                     lease_time: l.lease_time,
-                    mtu: 0,
+                    mtu,
                     domain_name,
                     mac_addr: None,
                 }),

@@ -10,6 +10,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get_lease(Request::new(NetworkConfig {
             iface: String::from("wlp5s0"),
             mac_addr: Some(MacAddress::new("00:00:5e:00:53:af".to_string())),
+            domain_name: "Jack Baude".to_string(),
+            host_name: "Jacks Machine".to_string(),
             version: 0,
         }))
         .await?;
