@@ -1,4 +1,3 @@
-
 use crate::g_rpc::{Lease as NetavarkLease, MacAddress};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -50,7 +49,11 @@ impl LeaseCache {
     ///
     /// On success this the method will return Ok. On a failure it will return an IO error due to
     /// not being able to write or read the file system cache
-    pub fn add_lease(&mut self, mac_addr: &MacAddress, lease: &NetavarkLease) -> Result<(), io::Error> {
+    pub fn add_lease(
+        &mut self,
+        mac_addr: &MacAddress,
+        lease: &NetavarkLease,
+    ) -> Result<(), io::Error> {
         let cache = &mut self.mem;
         // write to the memory cache
         // HashMap::insert uses a owned reference and key, must clone the referenced mac address and lease
@@ -77,7 +80,7 @@ impl LeaseCache {
     ) -> Result<(), io::Error> {
         let cache = &mut self.mem;
         // write to the memory cache
-        cache.insert(mac_addr.addr, vec![lease.clone()]);
+        cache.insert(mac_addr.addr, vec![lease]);
         // write updated memory cache to the file system
         self.save_memory_to_fs()
     }
@@ -99,7 +102,7 @@ impl LeaseCache {
     pub fn teardown(&mut self) -> Result<(), io::Error> {
         self.mem.clear();
         let path = Path::new(XDGRUNTIME);
-        return match OpenOptions::new().truncate(true).open(path) {
+        return match OpenOptions::new().write(true).truncate(true).open(path) {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         };
@@ -113,7 +116,7 @@ impl LeaseCache {
         let mem = &self.mem;
         // Write and truncate options set to true to clear the file
         let file = OpenOptions::new().write(true).truncate(true).open(path)?;
-        serde_json::to_writer_pretty(&file, &mem)?;
+        serde_json::to_writer(&file, &mem)?;
         Ok(())
     }
 }
@@ -132,6 +135,7 @@ mod cache_tests {
     #[test]
     fn new() {
         // 1. Clean the directory to the lease
+
         // 2. Create a new cache instance
         // 3. Check that the file to the cache exists
         // 4. Clean the directory to the lease

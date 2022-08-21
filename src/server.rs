@@ -1,14 +1,15 @@
-use std::sync::{Arc, Mutex};
 use mozim::{DhcpError, DhcpV4Client, DhcpV4Config, DhcpV4Lease as MozimV4Lease, ErrorKind};
 use netavark_proxy::cache::LeaseCache;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
-use netavark_proxy::g_rpc::{Lease as NetavarkLease, NetworkConfig, OperationResponse, MacAddress};
-use tokio;
+use netavark_proxy::g_rpc::{
+    Lease as NetavarkLease, MacAddress, NetworkConfig, OperationResponse, Teardown,
+};
+use std::sync::{Arc, Mutex};
+
 use tonic::Code::InvalidArgument;
-use tonic::{transport::Server, Code::Internal, Request, Response, Status, Code};
+use tonic::{transport::Server, Code, Code::Internal, Request, Response, Status};
 
 const POLL_WAIT_TIME: isize = 5;
-
 
 #[derive(Debug)]
 /// This is the tonic netavark proxy service that is required to impl the Netavark Proxy trait which
@@ -65,11 +66,17 @@ impl NetavarkProxy for NetavarkProxyService {
                         // Lease successfully found
                         Ok(Some(new_lease)) => {
                             // the lease must be mutable in order to add the mac address and domain name
-                            let mut netavark_lease = <NetavarkLease as From<MozimV4Lease>>::from(new_lease);
+                            let mut netavark_lease =
+                                <NetavarkLease as From<MozimV4Lease>>::from(new_lease);
                             netavark_lease.add_mac_address(&mac_addr);
                             netavark_lease.add_domain_name(network_config.domain_name);
-                            if let Err(e) = cache.lock().unwrap().add_lease(&mac_addr, &netavark_lease) {
-                                return Err(Status::new(Internal, format!("Error caching the lease: {}", e.to_string())));
+                            if let Err(e) =
+                                cache.lock().unwrap().add_lease(&mac_addr, &netavark_lease)
+                            {
+                                return Err(Status::new(
+                                    Internal,
+                                    format!("Error caching the lease: {}", e),
+                                ));
                             }
                             return Ok(Response::new(netavark_lease));
                         }
@@ -85,10 +92,13 @@ impl NetavarkProxy for NetavarkProxyService {
                     std::thread::sleep(std::time::Duration::from_secs(1));
                 }
             }
-            return Err(Status::new(Code::Unavailable, "Could not find a lease. Likely could not find a dhcp server"));
+            Err(Status::new(
+                Code::Unavailable,
+                "Could not find a lease. Likely could not find a dhcp server",
+            ))
         })
-            .join()
-            .expect("Error joining thread")
+        .join()
+        .expect("Error joining thread")
     }
     /// When a container is shut down this method should be called. It will clear the lease information
     /// from the caching system.
@@ -96,14 +106,18 @@ impl NetavarkProxy for NetavarkProxyService {
         &self,
         request: Request<MacAddress>,
     ) -> Result<Response<OperationResponse>, Status> {
-        self.0.clone().lock().unwrap().remove_lease(request.into_inner())?;
+        self.0
+            .clone()
+            .lock()
+            .unwrap()
+            .remove_lease(request.into_inner())?;
         Ok(Response::new(OperationResponse { success: true }))
     }
 
     /// On teardown of the proxy the cache will be cleared gracefully.
     async fn tear_down(
         &self,
-        request: Request<NetworkConfig>,
+        request: Request<Teardown>,
     ) -> Result<Response<OperationResponse>, Status> {
         log::debug!("Request from client: {:?}", request.remote_addr());
         self.0.clone().lock().unwrap().teardown()?;
@@ -127,21 +141,19 @@ fn get_client(iface: &String, version: &i32) -> Result<DhcpV4Client, DhcpError> 
     match version {
         //V4
         0 => {
-            let config = DhcpV4Config::new(&iface)?;
+            let config = DhcpV4Config::new(iface)?;
             let client = DhcpV4Client::init(config, None)?;
-            return Ok(client);
+            Ok(client)
         }
         //V6 TODO implement DHCPv6
         1 => {
             unimplemented!();
         }
         // No valid version found in the network configuration sent by the client
-        _ => {
-            return Err(DhcpError::new(
-                ErrorKind::InvalidArgument,
-                String::from("Must select a valid IP protocol 0=v4, 1=v6"),
-            ));
-        }
+        _ => Err(DhcpError::new(
+            ErrorKind::InvalidArgument,
+            String::from("Must select a valid IP protocol 0=v4, 1=v6"),
+        )),
     }
 }
 

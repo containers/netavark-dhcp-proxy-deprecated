@@ -29,10 +29,7 @@ pub mod g_rpc {
                 None => String::from(""),
                 Some(l) => l
             };
-            let mtu = match l.mtu {
-                None => 0,
-                Some(i) => i
-            } as u32;
+            let mtu = l.mtu.unwrap_or(0) as u32;
 
             Lease {
                 ip_response: Some(IpResponse {
@@ -71,9 +68,9 @@ pub mod g_rpc {
 
     impl From<std::net::Ipv4Addr> for Ipv4Addr {
         fn from(ip: std::net::Ipv4Addr) -> Ipv4Addr {
-            return Ipv4Addr {
+            Ipv4Addr {
                 octets: Vec::from(ip.octets())
-            };
+            }
         }
     }
 
@@ -84,9 +81,9 @@ pub mod g_rpc {
                     octets: Vec::from(addr.octets())
                 };
             }
-            return Ipv4Addr {
+            Ipv4Addr {
                 octets: Vec::from([0, 0, 0, 0])
-            };
+            }
         }
     }
 

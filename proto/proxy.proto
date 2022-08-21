@@ -4,7 +4,7 @@ package netavark_proxy;
 service NetavarkProxy {
   rpc GetLease(NetworkConfig) returns (Lease) {}
   rpc RemoveLease(MacAddress) returns (OperationResponse) {}
-  rpc TearDown(NetworkConfig) returns (OperationResponse) {}
+  rpc TearDown(Teardown) returns (OperationResponse) {}
 }
 // Netavark sends the proxy the Network Configuration that it wants to setup
 message NetworkConfig {
@@ -48,7 +48,8 @@ message DhcpV4Lease {
 message DhcpV6Lease {
 
 }
-
+// Empty Message to send when calling for a shutdown
+message Teardown{}
 // Response to netavark on successful teardown
 message OperationResponse {
   bool success = 1;
