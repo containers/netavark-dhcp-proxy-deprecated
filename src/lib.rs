@@ -25,9 +25,9 @@ pub mod g_rpc {
     impl From<MozimV4Lease> for Lease {
         fn from(l: MozimV4Lease) -> Lease {
             // Since these fields are optional as per mozim. Match them first and then set them
-            let domain_name = match l.domain_name{
+            let domain_name = match l.domain_name {
                 None => String::from(""),
-                Some(l) => l
+                Some(l) => l,
             };
             let mtu = l.mtu.unwrap_or(0) as u32;
 
@@ -49,7 +49,7 @@ pub mod g_rpc {
                     dns_servers: handle_ip_vectors(l.dns_srvs),
                     gateways: handle_ip_vectors(l.gateways),
                     ntp_servers: handle_ip_vectors(l.ntp_srvs),
-                    host_name: l.host_name.unwrap_or(String::from("")),
+                    host_name: l.host_name.unwrap_or_else(|| String::from("")),
                 }),
                 v6: None,
             }
@@ -69,7 +69,7 @@ pub mod g_rpc {
     impl From<std::net::Ipv4Addr> for Ipv4Addr {
         fn from(ip: std::net::Ipv4Addr) -> Ipv4Addr {
             Ipv4Addr {
-                octets: Vec::from(ip.octets())
+                octets: Vec::from(ip.octets()),
             }
         }
     }
@@ -78,11 +78,11 @@ pub mod g_rpc {
         fn from(ip: Option<std::net::Ipv4Addr>) -> Self {
             if let Some(addr) = ip {
                 return Ipv4Addr {
-                    octets: Vec::from(addr.octets())
+                    octets: Vec::from(addr.octets()),
                 };
             }
             Ipv4Addr {
-                octets: Vec::from([0, 0, 0, 0])
+                octets: Vec::from([0, 0, 0, 0]),
             }
         }
     }

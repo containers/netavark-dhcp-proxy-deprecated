@@ -137,7 +137,7 @@ impl NetavarkProxy for NetavarkProxyService {
 ///
 /// On success a DHCP client of the version type will be returned. On failure a DHCP error will be
 /// returned
-fn get_client(iface: &String, version: &i32) -> Result<DhcpV4Client, DhcpError> {
+fn get_client(iface: &str, version: &i32) -> Result<DhcpV4Client, DhcpError> {
     match version {
         //V4
         0 => {

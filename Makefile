@@ -38,7 +38,7 @@ $(CARGO_TARGET_DIR):
 .PHONY: build
 build: bin $(CARGO_TARGET_DIR)
 	cargo build -j 4 $(release)
-	cp $(CARGO_TARGET_DIR)/$(profile)/netavark_proxy bin/netavark-proxy$(if $(debug),.debug,)
+	cp $(CARGO_TARGET_DIR)/$(profile)/server bin/netavark-proxy$(if $(debug),.debug,)
 
 clean:
 	rm -fr bin
@@ -67,7 +67,7 @@ integration: $(CARGO_TARGET_DIR)
 .PHONY: validate
 validate: $(VARGO_TARGET_DIR)
 	cargo fmt --all -- --check
-	cargo clippy --no-deps
+	cargo clippy --no-deps --fix --allow-dirty
 
 help:
 	@printf '%s\n' \
