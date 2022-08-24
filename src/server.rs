@@ -2,7 +2,7 @@ use mozim::{DhcpError, DhcpV4Client, DhcpV4Config, DhcpV4Lease as MozimV4Lease, 
 use netavark_proxy::cache::LeaseCache;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
 use netavark_proxy::g_rpc::{
-    Lease as NetavarkLease, MacAddress, NetworkConfig, OperationResponse, Teardown,
+    Empty, Lease as NetavarkLease, MacAddress, NetworkConfig, OperationResponse,
 };
 use std::sync::{Arc, Mutex};
 
@@ -30,7 +30,7 @@ struct NetavarkProxyService(Arc<Mutex<LeaseCache>>);
 impl NetavarkProxy for NetavarkProxyService {
     /// A new lease will be sent back to netavark on request. get_lease() is responsible for also
     /// updating the cache based on the dhcp event that happens.
-    async fn get_lease(
+    async fn setup(
         &self,
         request: Request<NetworkConfig>,
     ) -> Result<Response<NetavarkLease>, Status> {
@@ -40,6 +40,7 @@ impl NetavarkProxy for NetavarkProxyService {
         std::thread::spawn(move || {
             // Set up some common values
             let network_config: NetworkConfig = request.into_inner();
+            println!("{:#?}", ::serde_json::to_string_pretty(&network_config));
             // Make sure a mac address was supplied in the NetworkConfig and validate the addr if it exists
             let mac_addr = match network_config.mac_addr {
                 Some(addr) => {
@@ -68,7 +69,7 @@ impl NetavarkProxy for NetavarkProxyService {
                             // the lease must be mutable in order to add the mac address and domain name
                             let mut netavark_lease =
                                 <NetavarkLease as From<MozimV4Lease>>::from(new_lease);
-                            netavark_lease.add_mac_address(&mac_addr);
+                            netavark_lease.add_mac_address(mac_addr.clone());
                             netavark_lease.add_domain_name(network_config.domain_name);
                             if let Err(e) =
                                 cache.lock().unwrap().add_lease(&mac_addr, &netavark_lease)
@@ -102,23 +103,29 @@ impl NetavarkProxy for NetavarkProxyService {
     }
     /// When a container is shut down this method should be called. It will clear the lease information
     /// from the caching system.
-    async fn remove_lease(
+    async fn teardown(
         &self,
         request: Request<MacAddress>,
-    ) -> Result<Response<OperationResponse>, Status> {
-        self.0
-            .clone()
-            .lock()
-            .unwrap()
-            .remove_lease(request.into_inner())?;
-        Ok(Response::new(OperationResponse { success: true }))
+    ) -> Result<Response<NetavarkLease>, Status> {
+        let mac_addr = request.into_inner();
+        let empty_lease = NetavarkLease {
+            t1: 0,
+            t2: 0,
+            lease_time: 0,
+            mtu: 0,
+            domain_name: "".to_string(),
+            mac_addr: Some(mac_addr.clone()),
+            is_v6: false,
+            v4: None,
+            v6: None,
+        };
+
+        self.0.clone().lock().unwrap().remove_lease(mac_addr)?;
+        Ok(Response::new(empty_lease))
     }
 
     /// On teardown of the proxy the cache will be cleared gracefully.
-    async fn tear_down(
-        &self,
-        request: Request<Teardown>,
-    ) -> Result<Response<OperationResponse>, Status> {
+    async fn clean(&self, request: Request<Empty>) -> Result<Response<OperationResponse>, Status> {
         log::debug!("Request from client: {:?}", request.remote_addr());
         self.0.clone().lock().unwrap().teardown()?;
         Ok(Response::new(OperationResponse { success: true }))

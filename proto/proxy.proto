@@ -2,9 +2,9 @@ syntax = "proto3";
 package netavark_proxy;
 
 service NetavarkProxy {
-  rpc GetLease(NetworkConfig) returns (Lease) {}
-  rpc RemoveLease(MacAddress) returns (OperationResponse) {}
-  rpc TearDown(Teardown) returns (OperationResponse) {}
+  rpc Setup(NetworkConfig) returns (Lease) {}
+  rpc Teardown(MacAddress) returns (Lease) {}
+  rpc Clean(Empty) returns (OperationResponse) {}
 }
 // Netavark sends the proxy the Network Configuration that it wants to setup
 message NetworkConfig {
@@ -17,19 +17,15 @@ message NetworkConfig {
 }
 // Lease can either contain a IPv4 or IPv6 DHCP lease, and the common IP information
 message Lease {
-  IPResponse IpResponse = 1;
-  DhcpV4Lease v4 = 2;
-  DhcpV6Lease v6 = 3;
-
-}
-// Common ip information shared between DHCPv4 and DHCPv6
-message IPResponse {
   uint32 t1 = 1;
   uint32 t2 = 2;
   uint32 lease_time = 3;
   uint32  mtu = 4;
   string domain_name = 5;
   MacAddress mac_addr = 6;
+  bool isV6 = 10;
+  DhcpV4Lease v4 = 11;
+  DhcpV6Lease v6 = 12;
 }
 
 message DhcpV4Lease {
@@ -49,7 +45,8 @@ message DhcpV6Lease {
 
 }
 // Empty Message to send when calling for a shutdown
-message Teardown{}
+message Empty{}
+
 // Response to netavark on successful teardown
 message OperationResponse {
   bool success = 1;

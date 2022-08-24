@@ -1,0 +1,9 @@
+{
+  "iface": "veth0",
+  "mac_addr": {
+    "addr": "3c:e1:a1:c1:7a:3f"
+  },
+  "domain_name": "example.com",
+  "host_name": "foobar",
+  "version": 0
+}

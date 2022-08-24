@@ -39,19 +39,12 @@ $(CARGO_TARGET_DIR):
 build: bin $(CARGO_TARGET_DIR)
 	cargo build -j 4 $(release)
 	cp $(CARGO_TARGET_DIR)/$(profile)/server bin/netavark-proxy$(if $(debug),.debug,)
+	cp $(CARGO_TARGET_DIR)/$(profile)/client bin/client$(if $(debug),.debug,)
 
 clean:
 	rm -fr bin
 	cargo clean
 	rm -f proto-build/netavark_proxy.rs
-
-server:
-	cargo run -j 4 --bin server
-
-client: bin $(CARGO_TARGET_DIR)
-	cargo build -j 4 $(release)
-	cp $(CARGO_TARGET_DIR)/$(profile)/client bin/client$(if $(debug),.debug,)
-
 
 .PHONY: test
 test: unit integration
