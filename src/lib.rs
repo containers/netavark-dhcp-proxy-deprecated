@@ -1,19 +1,27 @@
+use crate::g_rpc::NetworkConfig;
+use std::error::Error;
+
 pub mod cache;
+pub mod commands;
+use std::fs::File;
+
 pub mod g_rpc {
     include!("../proto-build/netavark_proxy.rs");
     use mozim::DhcpV4Lease as MozimV4Lease;
     impl Lease {
         /// Add mac address to a lease
-        pub fn add_mac_address(&mut self, mac_addr: &MacAddress) {
-            if let Some(ip_rep) = &mut self.ip_response {
-                ip_rep.mac_addr = Option::from(mac_addr.clone());
-            }
+        pub fn add_mac_address(&mut self, mac_addr: MacAddress) {
+            self.mac_addr = Option::from(mac_addr);
+            // if let Some(ip_rep) = &mut self.ip_response {
+            //     ip_rep.mac_addr = Option::from(mac_addr.clone());
+            // }
         }
         /// Update the domain name of the lease
         pub fn add_domain_name(&mut self, domain_name: String) {
-            if let Some(ip_rep) = &mut self.ip_response {
-                ip_rep.domain_name = domain_name;
-            }
+            self.domain_name = domain_name;
+            // if let Some(ip_rep) = &mut self.ip_response {
+            //     ip_rep.domain_name = domain_name;
+            // }
         }
     }
     impl DhcpV4Lease {
@@ -32,14 +40,12 @@ pub mod g_rpc {
             let mtu = l.mtu.unwrap_or(0) as u32;
 
             Lease {
-                ip_response: Some(IpResponse {
-                    t1: l.t1,
-                    t2: l.t2,
-                    lease_time: l.lease_time,
-                    mtu,
-                    domain_name,
-                    mac_addr: None,
-                }),
+                t1: l.t1,
+                t2: l.t2,
+                lease_time: l.lease_time,
+                mtu,
+                domain_name,
+                mac_addr: None,
                 v4: Some(DhcpV4Lease {
                     siaddr: Some(Ipv4Addr::from(l.siaddr)),
                     yiaddr: Some(Ipv4Addr::from(l.yiaddr)),
@@ -52,6 +58,7 @@ pub mod g_rpc {
                     host_name: l.host_name.unwrap_or_else(|| String::from("")),
                 }),
                 v6: None,
+                is_v6: false,
             }
         }
     }
@@ -146,5 +153,12 @@ pub mod g_rpc {
 
             address
         }
+    }
+}
+
+impl NetworkConfig {
+    pub fn load(path: &str) -> Result<NetworkConfig, Box<dyn Error>> {
+        let file = std::io::BufReader::new(File::open(path)?);
+        Ok(serde_json::from_reader(file)?)
     }
 }

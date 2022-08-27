@@ -24,6 +24,14 @@ fn main() {
         .type_attribute("netavark_proxy.Ipv4Addr", "#[derive(serde::Deserialize)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(Eq)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(Hash)]")
+        .type_attribute(
+            "netavark_proxy.NetworkConfig",
+            "#[derive(serde::Deserialize)]",
+        )
+        .type_attribute(
+            "netavark_proxy.NetworkConfig",
+            "#[derive(serde::Serialize)]",
+        )
         .out_dir(PathBuf::from("proto-build"));
 
     builder
