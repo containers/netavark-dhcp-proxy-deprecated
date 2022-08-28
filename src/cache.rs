@@ -1,11 +1,12 @@
 use crate::g_rpc::{Lease as NetavarkLease, MacAddress};
+use log::debug;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io;
 use std::path::{Path, PathBuf};
 
 /// Path to the lease json cache
-pub const XDGRUNTIME: &str = "/run/user/1000/nv-leases";
+pub const DEFAULT_CACHE_DIR: &str = "/var/tmp/";
 
 /// LeaseCache holds the locked memory map of the mac address to a vector of leases - for multi homing
 /// It also stores a locked path buffer to change the FS cache
@@ -23,18 +24,23 @@ impl LeaseCache {
     ///
     /// # Arguments
     /// * `dir`: Optional directory string that allows user to define their own cache directory.
-    /// Otherwise the default directory is `/run/user/1000/nv-leases`
+    /// Otherwise the default directory is
     ///
     /// returns: Result<LeaseCache, Error>
     ///
-    /// On success a new lease cache instance will be returned. On failure a io error will be returned.
+    /// On success a new lease cache instance will be returned. On failure an IO error will
+    /// be returned.
     /// This likely means it could not find the file directory
     pub fn new(dir: Option<String>) -> Result<LeaseCache, io::Error> {
-        let path = dir.as_deref().unwrap_or(XDGRUNTIME);
-        OpenOptions::new().write(true).create(true).open(path)?;
+        let fq_path = Path::new(dir.as_deref().unwrap_or(DEFAULT_CACHE_DIR)).join("nv-leases");
+        debug!("lease cache file: {:?}", fq_path.to_str().unwrap_or(""));
+
+        // TODO Should LeaseCache use the resulting file from here instead of a path?
+        // let cache_file = OpenOptions::new().write(true).create(true).open(fq_path)?;
+
         Ok(LeaseCache {
             mem: HashMap::new(),
-            path: PathBuf::from(path),
+            path: fq_path.clone(),
         })
     }
 
@@ -54,6 +60,7 @@ impl LeaseCache {
         mac_addr: &MacAddress,
         lease: &NetavarkLease,
     ) -> Result<(), io::Error> {
+        debug!("add lease: {:?}", mac_addr.addr);
         let cache = &mut self.mem;
         // write to the memory cache
         // HashMap::insert uses a owned reference and key, must clone the referenced mac address and lease
@@ -91,6 +98,7 @@ impl LeaseCache {
     ///
     /// * `mac_addr`: Mac address of the container
     pub fn remove_lease(&mut self, mac_addr: MacAddress) -> Result<(), io::Error> {
+        debug!("remove lease: {:?}", mac_addr.addr);
         let mem = &mut self.mem;
         // the remove function uses a reference key, so we borrow and dereference the MadAddress
         mem.remove(&*mac_addr.addr);
@@ -101,8 +109,11 @@ impl LeaseCache {
     /// Clean up the memory and file system on tear down of the proxy server
     pub fn teardown(&mut self) -> Result<(), io::Error> {
         self.mem.clear();
-        let path = Path::new(XDGRUNTIME);
-        return match OpenOptions::new().write(true).truncate(true).open(path) {
+        return match OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&self.path)
+        {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         };
@@ -117,6 +128,7 @@ impl LeaseCache {
         // Write and truncate options set to true to clear the file
         let file = OpenOptions::new().write(true).truncate(true).open(path)?;
         serde_json::to_writer(&file, &mem)?;
+        file.sync_all()?;
         Ok(())
     }
 }
@@ -125,7 +137,7 @@ impl Default for LeaseCache {
     fn default() -> Self {
         LeaseCache {
             mem: HashMap::<String, Vec<NetavarkLease>>::new(),
-            path: PathBuf::from(XDGRUNTIME),
+            path: PathBuf::from(DEFAULT_CACHE_DIR),
         }
     }
 }
