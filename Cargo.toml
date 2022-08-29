@@ -17,7 +17,7 @@ path = "src/client.rs"
 [dependencies]
 serde = { version = "1.0.143", features = ["derive"] }
 serde_json = "1.0.83"
-mozim = { git = "https://github.com/nispor/mozim" }
+mozim = { git = "https://github.com/nispor/mozim", rev="60c85f52" }
 tonic = "0.8"
 prost = "0.11"
 futures-core = "0.3"
