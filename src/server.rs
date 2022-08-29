@@ -6,6 +6,8 @@ use netavark_proxy::g_rpc::{
 };
 use std::sync::{Arc, Mutex};
 
+use clap;
+use clap::Parser;
 use tonic::Code::InvalidArgument;
 use tonic::{transport::Server, Code, Code::Internal, Request, Response, Status};
 
@@ -163,18 +165,39 @@ fn get_client(iface: &str, version: &i32) -> Result<DhcpV4Client, DhcpError> {
         )),
     }
 }
+#[derive(Parser, Debug)]
+#[clap(version = env!("CARGO_PKG_VERSION"))]
+struct Opts {
+    /// location to store backup files
+    #[clap(short, long)]
+    dir: Option<String>,
+    /// alternative port location
+    #[clap(short, long)]
+    port: Option<std::net::SocketAddr>,
+}
 
 #[tokio::main]
 #[allow(unused)]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "[::1]:10000".parse().unwrap();
+    let default_grpc_port = "[::1]:10000".parse().unwrap();
+    let default_config_dir = "".to_string();
+
+    env_logger::builder().format_timestamp(None).init();
+    let opts = Opts::parse();
+
+    // where we store the cache file
+    let conf_dir = opts.dir.unwrap_or_else(|| default_config_dir);
+    // location of the grpc port
+    let addr = opts.port.unwrap_or_else(|| default_grpc_port);
+
     let cache = match LeaseCache::new(None) {
         Ok(c) => Arc::new(Mutex::new(c)),
         Err(e) => {
-            log::warn!("IO error with the cache fs");
+            log::error!("IO error with the cache fs");
             return Ok(());
         }
     };
+
     let netavark_proxy_service = NetavarkProxyService(cache);
     Server::builder()
         .add_service(NetavarkProxyServer::new(netavark_proxy_service))
