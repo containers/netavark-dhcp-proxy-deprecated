@@ -1,0 +1,265 @@
+---
+
+# Format Ref: https://cirrus-ci.org/guide/writing-tasks/
+
+# Main collection of env. vars to set for all tasks and scripts.
+env:
+    # Actual|intended branch for this run
+    DEST_BRANCH: "main"
+    # The default is 'sh' if unspecified
+    CIRRUS_SHELL: "/bin/bash"
+    # Location where source repo. will be cloned
+    CIRRUS_WORKING_DIR: "/var/tmp/nv-proxy"
+    # Rust package cache also lives here
+    CARGO_HOME: "/var/cache/cargo"
+    # Rust compiler output lives here (see Makefile)
+    CARGO_TARGET_DIR: "$CIRRUS_WORKING_DIR/targets"
+    # Testing depends on the latest netavark binary from upstream CI
+    NETAVARK_BRANCH: "main"
+    NETAVARK_URL: "https://api.cirrus-ci.com/v1/artifact/github/containers/netavark-dhcp-proxy/success/binary.zip?branch=${NETAVARK_BRANCH}"
+    # Save a little typing (path relative to $CIRRUS_WORKING_DIR)
+    SCRIPT_BASE: "./contrib/cirrus"
+    IMAGE_SUFFIX: "c5880300080201728"
+    FEDORA_NETAVARK_IMAGE: "fedora-netavark-${IMAGE_SUFFIX}"
+
+
+gcp_credentials: ENCRYPTED[c28756318ed3356962096afdb5f69268d8ecd07a974f2c31004a83144124ae9653d66beb8e896e4034c6dac43775958a]
+
+build_task:
+  alias: "build"
+  # Compiling is very CPU intensive, make it chooch quicker for this task only
+  gce_instance: &standard_build_gce_x86_64
+    image_project: "libpod-218412"
+    zone: "us-central1-c"
+    disk: 200  # GB, do not set <200 per gcloud warning re: I/O performance
+    cpu: 8
+    memory: "8Gb"
+    image_name: "${FEDORA_NETAVARK_IMAGE}"
+  cargo_cache: &cargo_cache
+    folder: "$CARGO_HOME"
+    fingerprint_key: "cargo_v1_${DEST_BRANCH}"  # Cache for branch + PRs
+    reupload_on_changes: true
+  targets_cache: &targets_cache
+    folder: "$CARGO_TARGET_DIR"
+    fingerprint_key: "targets_v1_${CIRRUS_BUILD_ID}" # Cache only within same build
+    reupload_on_changes: true
+  bin_cache: &bin_cache
+    # This simply prevents rebuilding bin/aardvark-dns* or every subsequent task.
+    folder: "$CIRRUS_WORKING_DIR/bin"
+    fingerprint_key: "bin_v1_${CIRRUS_BUILD_ID}" # Cache only within same build
+    reupload_on_changes: true
+  setup_script: &setup "$SCRIPT_BASE/setup.sh $CIRRUS_TASK_NAME"
+  main_script: &main "$SCRIPT_BASE/runner.sh $CIRRUS_TASK_NAME"
+  upload_caches: [ "cargo", "targets", "bin" ]
+
+
+  #build_aarch64_task:
+  #  alias: "build_aarch64"
+  #  # Compiling is very CPU intensive, make it chooch quicker for this task only
+  #  ec2_instance: &standard_build_ec2_aarch64
+  #    image: ami-0f89dfa699fe590b0
+  #    type: t4g.xlarge
+  #    region: us-east-1
+  #    architecture: arm64  # CAUTION: This has to be "arm64", not aarch64.
+  #  cargo_cache: &cargo_cache_aarch64
+  #    <<: *cargo_cache
+  #    fingerprint_key: "cargo_v1_${DEST_BRANCH}_aarch64"
+  #  targets_cache: &targets_cache_aarch64
+  #    <<: *targets_cache
+  #    fingerprint_key: "cargo_v1_${DEST_BRANCH}_aarch64"
+  #  bin_cache: &bin_cache_aarch64
+  #    <<: *bin_cache
+  #    fingerprint_key: "cargo_v1_${DEST_BRANCH}_aarch64"
+  #  setup_script: *setup
+  #  main_script: *main
+  #  upload_caches: [ "cargo", "targets", "bin" ]
+
+
+validate_task:
+  alias: "validate"
+  depends_on:
+    - "build"
+  gce_instance: &standard_gce_x86_64
+    <<: *standard_build_gce_x86_64
+    cpu: 2
+    memory: "4Gb"
+  # From this point forward, all cache's become read-only for this run.
+  cargo_cache: &ro_cargo_cache
+    <<: *cargo_cache
+    reupload_on_changes: false
+  targets_cache: &ro_targets_cache
+    <<: *targets_cache
+    reupload_on_changes: false
+  bin_cache: &ro_bin_cache
+    <<: *bin_cache
+    reupload_on_changes: false
+  setup_script: *setup
+  main_script: *main
+
+
+  #validate_aarch64_task:
+  #  alias: "validate_aarch64"
+  #  depends_on:
+  #    - "build_aarch64"
+  #  ec2_instance: *standard_build_ec2_aarch64
+  #  # From this point forward, all cache's become read-only for this run.
+  #  cargo_cache: &ro_cargo_cache_aarch64
+  #    <<: *cargo_cache_aarch64
+  #    reupload_on_changes: false
+  #  targets_cache: &ro_targets_cache_aarch64
+  #    <<: *targets_cache_aarch64
+  #    reupload_on_changes: false
+  #  bin_cache: &ro_bin_cache_aarch64
+  #    <<: *bin_cache_aarch64
+  #    reupload_on_changes: false
+  #  setup_script: *setup
+  #  main_script: *main
+
+
+verify_vendor_task:
+  alias: "verify_vendor"
+  depends_on:
+    - "build"
+  gce_instance: *standard_gce_x86_64
+  cargo_cache: *ro_cargo_cache
+  targets_cache: *ro_targets_cache
+  bin_cache: *ro_bin_cache
+  setup_script: *setup
+  main_script: *main
+
+
+  #verify_vendor_aarch64_task:
+  #  alias: "verify_vendor_aarch64"
+  #  depends_on:
+  #    - "build_aarch64"
+  #  ec2_instance: *standard_build_ec2_aarch64
+  #  cargo_cache: *ro_cargo_cache_aarch64
+  #  targets_cache: *ro_targets_cache_aarch64
+  #  bin_cache: *ro_bin_cache_aarch64
+  #  setup_script: *setup
+  #  main_script: *main
+
+
+unit_task:
+  alias: "unit"
+  depends_on:
+    - "build"  # Run in parallel with validate to save some time
+  gce_instance: *standard_gce_x86_64
+  cargo_cache: *ro_cargo_cache
+  targets_cache: *ro_targets_cache
+  bin_cache: *ro_bin_cache
+  setup_script: *setup
+  main_script: *main
+
+
+  #unit_aarch64_task:
+  #  alias: "unit_aarch64"
+  #  depends_on:
+  #    - "build_aarch64"  # Run in parallel with validate to save some time
+  #  ec2_instance: *standard_build_ec2_aarch64
+  #  cargo_cache: *ro_cargo_cache_aarch64
+  #  targets_cache: *ro_targets_cache_aarch64
+  #  bin_cache: *ro_bin_cache_aarch64
+  #  setup_script: *setup
+  #  main_script: *main
+
+
+  #integration_task:
+  #  alias: "integration"
+  #  depends_on:
+  #    - "unit"
+  #  gce_instance: *standard_gce_x86_64
+  #  cargo_cache: *ro_cargo_cache
+  #  targets_cache: *ro_targets_cache
+  #  bin_cache: *ro_bin_cache
+  #  setup_script: *setup
+  #  main_script: *main
+  #
+  #
+  #integration_aarch64_task:
+  #  alias: "integration_aarch64"
+  #  depends_on:
+  #    - "unit_aarch64"
+  #  ec2_instance: *standard_build_ec2_aarch64
+  #  cargo_cache: *ro_cargo_cache_aarch64
+  #  targets_cache: *ro_targets_cache_aarch64
+  #  bin_cache: *ro_bin_cache_aarch64
+  #  setup_script: *setup
+  #  main_script: *main
+
+
+# This task is critical.  It updates the "last-used by" timestamp stored
+# in metadata for all VM images.  This mechanism functions in tandem with
+# an out-of-band pruning operation to remove disused VM images.
+meta_task:
+    alias: meta
+    name: "VM img. keepalive"
+    container:
+        cpu: 2
+        memory: 2
+        image: quay.io/libpod/imgts:$IMAGE_SUFFIX
+    env:
+        # Space-separated list of images used by this repository state
+        IMGNAMES: "${FEDORA_NETAVARK_IMAGE}"
+        BUILDID: "${CIRRUS_BUILD_ID}"
+        REPOREF: "${CIRRUS_REPO_NAME}"
+        GCPJSON: ENCRYPTED[c89506273e54e772a7899b9611e38ec72460855c4d1ad590cf0322b5d15bcb851859dfa0e39f962f991d5ddbdcf39ae0]
+        GCPNAME: ENCRYPTED[986d32112058ebe9c3052b55830413549d99c543e4ed056602ae3543fe5e8a4641ff24069915489b9bb422919648c739]
+        GCPPROJECT: libpod-218412
+    clone_script: &noop mkdir -p $CIRRUS_WORKING_DIR  # source not needed
+    script: /usr/local/bin/entrypoint.sh
+
+ubuntu20_build_task:
+    alias: ubuntu20_build
+    depends_on:
+      - "build"
+    gce_instance: *standard_gce_x86_64
+    container:
+        cpu: 2
+        memory: 2
+        image: quay.io/libpod/ubuntu20rust
+    script:
+        - cargo build
+
+centos9_build_task:
+    alias: centos9_build
+    depends_on:
+      - "build"
+    gce_instance: *standard_gce_x86_64
+    container:
+        cpu: 2
+        memory: 2
+        image: quay.io/libpod/centos9rust
+    script:
+        - cargo build
+
+
+success_task:
+  alias: "success"
+  gce_instance: *standard_gce_x86_64
+  name: "Total success"
+  depends_on:
+    - "build"
+      #- "build_aarch64"
+    - "validate"
+      #- "validate_aarch64"
+    - "verify_vendor"
+      #- "verify_vendor_aarch64"
+    - "unit"
+      #- "unit_aarch64"
+      #- "integration"
+      #- "integration_aarch64"
+    - "meta"
+    - "ubuntu20_build"
+    - "centos9_build"
+
+  bin_cache: *ro_bin_cache
+  clone_script: *noop
+  # The paths used for uploaded artifacts are relative here and in Cirrus
+  artifacts_prep_script:
+    - mv bin/* ./
+    - rm -rf bin
+  # Upload tested binary for consumption downstream
+  # https://cirrus-ci.org/guide/writing-tasks/#artifacts-instruction
+  binary_artifacts:
+    path: ./aardvark-dns*

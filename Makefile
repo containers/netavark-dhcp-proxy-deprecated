@@ -26,7 +26,7 @@ build-release:
 
 
 .PHONY: all
-all: client build
+all: build
 
 bin:
 	mkdir -p $@
@@ -61,12 +61,3 @@ integration: $(CARGO_TARGET_DIR)
 validate: $(VARGO_TARGET_DIR)
 	cargo fmt --all -- --check
 	cargo clippy --no-deps --fix --allow-dirty
-
-help:
-	@printf '%s\n' \
-		'Make commands:'\
-		' -- build-release'\
-		' -- build'\
-		' -- clean'\
-		' -- server:  builds and runs the server binary' \
-		' -- client: builds and runs the demo client'
