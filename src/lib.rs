@@ -4,6 +4,13 @@ use std::error::Error;
 pub mod cache;
 pub mod commands;
 use std::fs::File;
+// TODO these constant destinations are not final.
+// Default UDS path for gRPC to communicate on.
+pub const DEFAULT_UDS_PATH: &str = "/var/tmp/nv-dhcp";
+// Default configuration directory.
+pub const DEFAULT_CONFIG_DIR: &str = "";
+// Default Network configuration path
+pub const DEFAULT_NETWORK_CONFIG: &str = "/dev/stdin";
 
 pub mod g_rpc {
     include!("../proto-build/netavark_proxy.rs");

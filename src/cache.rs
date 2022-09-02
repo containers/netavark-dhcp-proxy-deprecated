@@ -35,12 +35,11 @@ impl LeaseCache {
         let fq_path = Path::new(dir.as_deref().unwrap_or(DEFAULT_CACHE_DIR)).join("nv-leases");
         debug!("lease cache file: {:?}", fq_path.to_str().unwrap_or(""));
 
-        // TODO Should LeaseCache use the resulting file from here instead of a path?
-        // let cache_file = OpenOptions::new().write(true).create(true).open(fq_path)?;
+        OpenOptions::new().write(true).create(true).open(&fq_path)?;
 
         Ok(LeaseCache {
             mem: HashMap::new(),
-            path: fq_path.clone(),
+            path: fq_path,
         })
     }
 
