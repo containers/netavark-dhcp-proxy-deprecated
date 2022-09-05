@@ -3,13 +3,13 @@ package netavark_proxy;
 
 service NetavarkProxy {
   rpc Setup(NetworkConfig) returns (Lease) {}
-  rpc Teardown(MacAddress) returns (Lease) {}
+  rpc Teardown(NetworkConfig) returns (Lease) {}
   rpc Clean(Empty) returns (OperationResponse) {}
 }
 // Netavark sends the proxy the Network Configuration that it wants to setup
 message NetworkConfig {
   string iface = 1;
-  MacAddress mac_addr = 3;
+  string mac_addr = 3;
   string domain_name = 4;
   string host_name = 5;
   Version version = 6;
@@ -22,7 +22,7 @@ message Lease {
   uint32 lease_time = 3;
   uint32  mtu = 4;
   string domain_name = 5;
-  MacAddress mac_addr = 6;
+  string mac_address= 6;
   bool isV6 = 10;
   DhcpV4Lease v4 = 11;
   DhcpV6Lease v6 = 12;
@@ -55,10 +55,6 @@ message OperationResponse {
 enum Version {
   V4 = 0;
   V6 = 1;
-}
-
-message MacAddress {
-  string addr = 1;
 }
 
 message Ipv4Addr {
