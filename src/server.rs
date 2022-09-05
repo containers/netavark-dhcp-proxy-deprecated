@@ -1,13 +1,21 @@
+#![cfg_attr(not(unix), allow(unused_imports))]
 use mozim::{DhcpError, DhcpV4Client, DhcpV4Config, DhcpV4Lease as MozimV4Lease, ErrorKind};
 use netavark_proxy::cache::LeaseCache;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
 use netavark_proxy::g_rpc::{
     Empty, Lease as NetavarkLease, MacAddress, NetworkConfig, OperationResponse,
 };
+use netavark_proxy::{DEFAULT_CONFIG_DIR, DEFAULT_UDS_PATH};
+use std::fs;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
+#[cfg(unix)]
+use tokio::net::UnixListener;
+#[cfg(unix)]
+use tokio_stream::wrappers::UnixListenerStream;
 
-use clap;
 use clap::Parser;
+use log::{debug, warn};
 use tonic::Code::InvalidArgument;
 use tonic::{transport::Server, Code, Code::Internal, Request, Response, Status};
 
@@ -36,7 +44,7 @@ impl NetavarkProxy for NetavarkProxyService {
         &self,
         request: Request<NetworkConfig>,
     ) -> Result<Response<NetavarkLease>, Status> {
-        println!("Request from client: {:?}", request.remote_addr());
+        debug!("Request from client {:?}", request.remote_addr());
         //Spawn a new thread to avoid tokio runtime issues
         let cache = self.0.clone();
         std::thread::spawn(move || {
@@ -171,37 +179,52 @@ struct Opts {
     /// location to store backup files
     #[clap(short, long)]
     dir: Option<String>,
-    /// alternative port location
+    /// alternative uds location
     #[clap(short, long)]
-    port: Option<std::net::SocketAddr>,
+    uds: Option<String>,
 }
 
 #[tokio::main]
 #[allow(unused)]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let default_grpc_port = "[::1]:10000".parse().unwrap();
-    let default_config_dir = "".to_string();
-
     env_logger::builder().format_timestamp(None).init();
     let opts = Opts::parse();
 
     // where we store the cache file
-    let conf_dir = opts.dir.unwrap_or_else(|| default_config_dir);
+    let conf_dir = opts.dir.unwrap_or(DEFAULT_CONFIG_DIR.to_string());
     // location of the grpc port
-    let addr = opts.port.unwrap_or_else(|| default_grpc_port);
+    let uds_path = opts.uds.unwrap_or(DEFAULT_UDS_PATH.to_string());
+    // Match because parent reruns an option
+    match Path::new(&uds_path).parent() {
+        None => {
+            log::error!("Could not find uds path");
+            return Ok(());
+        }
+        Some(f) => tokio::fs::create_dir_all(f).await?,
+    }
+    // Listen on UDS path
+    let uds = UnixListener::bind(&uds_path)?;
+    let uds_stream = UnixListenerStream::new(uds);
 
     let cache = match LeaseCache::new(None) {
         Ok(c) => Arc::new(Mutex::new(c)),
         Err(e) => {
-            log::error!("IO error with the cache fs");
+            log::error!("Could not setup the cache: {}", e.to_string());
             return Ok(());
         }
     };
-
     let netavark_proxy_service = NetavarkProxyService(cache);
     Server::builder()
         .add_service(NetavarkProxyServer::new(netavark_proxy_service))
-        .serve(addr)
+        .serve_with_incoming(uds_stream)
         .await?;
-    Ok(())
+
+    //Clean up UDS on exit
+    return match fs::remove_file(uds_path) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            warn!("Could not remove the file: {}", e);
+            Ok(())
+        }
+    };
 }
