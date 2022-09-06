@@ -15,28 +15,25 @@ pub const DEFAULT_NETWORK_CONFIG: &str = "/dev/stdin";
 pub mod g_rpc {
     include!("../proto-build/netavark_proxy.rs");
     use mozim::DhcpV4Lease as MozimV4Lease;
+
     impl Lease {
         /// Add mac address to a lease
-        pub fn add_mac_address(&mut self, mac_addr: MacAddress) {
-            self.mac_addr = Option::from(mac_addr);
-            // if let Some(ip_rep) = &mut self.ip_response {
-            //     ip_rep.mac_addr = Option::from(mac_addr.clone());
-            // }
+        pub fn add_mac_address(&mut self, mac_addr: &str) {
+            self.mac_address = mac_addr.to_string()
         }
         /// Update the domain name of the lease
         pub fn add_domain_name(&mut self, domain_name: String) {
             self.domain_name = domain_name;
-            // if let Some(ip_rep) = &mut self.ip_response {
-            //     ip_rep.domain_name = domain_name;
-            // }
         }
     }
+
     impl DhcpV4Lease {
         /// update the host name. This is only applicable to dhcpv4 leases
         pub fn add_host_name(&mut self, host_name: String) {
             self.host_name = host_name;
         }
     }
+
     impl From<MozimV4Lease> for Lease {
         fn from(l: MozimV4Lease) -> Lease {
             // Since these fields are optional as per mozim. Match them first and then set them
@@ -52,7 +49,7 @@ pub mod g_rpc {
                 lease_time: l.lease_time,
                 mtu,
                 domain_name,
-                mac_addr: None,
+                mac_address: "".to_string(),
                 v4: Some(DhcpV4Lease {
                     siaddr: Some(Ipv4Addr::from(l.siaddr)),
                     yiaddr: Some(Ipv4Addr::from(l.yiaddr)),
@@ -98,67 +95,6 @@ pub mod g_rpc {
             Ipv4Addr {
                 octets: Vec::from([0, 0, 0, 0]),
             }
-        }
-    }
-
-    impl MacAddress {
-        /// Create a new instance of a mac address
-        pub fn new(addr: String) -> Self {
-            MacAddress { addr }
-        }
-        /// Validate the mac address by decoding it then encoding and checking its the same as the
-        /// original
-        pub fn validate(&self) -> bool {
-            let bytes = match self.decode_address_from_hex() {
-                Ok(bytes) => bytes,
-                Err(e) => {
-                    log::debug!("{}", e.to_string());
-                    return false;
-                }
-            };
-            if MacAddress::encode_address_to_hex(bytes) == self.addr {
-                return true;
-            }
-            false
-        }
-
-        fn decode_address_from_hex(&self) -> Result<Vec<u8>, std::io::Error> {
-            let bytes: Result<Vec<u8>, _> = self
-                .addr
-                .split(|c| c == ':' || c == '-')
-                .into_iter()
-                .map(|b| u8::from_str_radix(b, 16))
-                .collect();
-
-            let result = match bytes {
-                Ok(bytes) => {
-                    if bytes.len() != 6 {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            format!("invalid mac length for address: {}", self.addr),
-                        ));
-                    }
-                    bytes
-                }
-                Err(e) => {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("unable to parse mac address {}: {}", self.addr, e),
-                    ));
-                }
-            };
-
-            Ok(result)
-        }
-
-        fn encode_address_to_hex(bytes: Vec<u8>) -> String {
-            let address: String = bytes
-                .iter()
-                .map(|x| format!("{:02x}", x))
-                .collect::<Vec<String>>()
-                .join(":");
-
-            address
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::g_rpc::{Lease as NetavarkLease, MacAddress};
+use crate::g_rpc::Lease as NetavarkLease;
 use log::debug;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -12,8 +12,6 @@ pub const DEFAULT_CACHE_DIR: &str = "/var/tmp/";
 /// It also stores a locked path buffer to change the FS cache
 #[derive(Debug)]
 pub struct LeaseCache {
-    // Memory cannot hold the MacAddress structure because serde_json decides to fail if T contains
-    // a map with non-string keys.
     mem: HashMap<String, Vec<NetavarkLease>>,
     path: PathBuf,
 }
@@ -54,16 +52,12 @@ impl LeaseCache {
     ///
     /// On success this the method will return Ok. On a failure it will return an IO error due to
     /// not being able to write or read the file system cache
-    pub fn add_lease(
-        &mut self,
-        mac_addr: &MacAddress,
-        lease: &NetavarkLease,
-    ) -> Result<(), io::Error> {
-        debug!("add lease: {:?}", mac_addr.addr);
+    pub fn add_lease(&mut self, mac_addr: &str, lease: &NetavarkLease) -> Result<(), io::Error> {
+        debug!("add lease: {:?}", mac_addr);
         let cache = &mut self.mem;
         // write to the memory cache
         // HashMap::insert uses a owned reference and key, must clone the referenced mac address and lease
-        cache.insert(mac_addr.clone().addr, vec![lease.clone()]);
+        cache.insert(mac_addr.to_string(), vec![lease.clone()]);
         // write updated memory cache to the file system
         self.save_memory_to_fs()
     }
@@ -79,14 +73,10 @@ impl LeaseCache {
     ///
     /// On success returns Ok. On failure returns an io error, likely means that the it could not
     /// find the file
-    pub fn update_lease(
-        &mut self,
-        mac_addr: MacAddress,
-        lease: NetavarkLease,
-    ) -> Result<(), io::Error> {
+    pub fn update_lease(&mut self, mac_addr: &str, lease: NetavarkLease) -> Result<(), io::Error> {
         let cache = &mut self.mem;
         // write to the memory cache
-        cache.insert(mac_addr.addr, vec![lease]);
+        cache.insert(mac_addr.to_string(), vec![lease]);
         // write updated memory cache to the file system
         self.save_memory_to_fs()
     }
@@ -96,11 +86,11 @@ impl LeaseCache {
     /// # Arguments
     ///
     /// * `mac_addr`: Mac address of the container
-    pub fn remove_lease(&mut self, mac_addr: MacAddress) -> Result<(), io::Error> {
-        debug!("remove lease: {:?}", mac_addr.addr);
+    pub fn remove_lease(&mut self, mac_addr: &str) -> Result<(), io::Error> {
+        debug!("remove lease: {:?}", mac_addr);
         let mem = &mut self.mem;
         // the remove function uses a reference key, so we borrow and dereference the MadAddress
-        mem.remove(&*mac_addr.addr);
+        mem.remove(mac_addr);
         // write updated memory cache to the file system
         self.save_memory_to_fs()
     }
@@ -121,7 +111,7 @@ impl LeaseCache {
     /// Save the memory contents to the file system. This will remove the contents in the file,
     /// then write the memory map to the file. This method will be called any the lease memory cache
     /// changes (new lease, remove lease, update lease)
-    fn save_memory_to_fs(&self) -> std::io::Result<()> {
+    fn save_memory_to_fs(&self) -> io::Result<()> {
         let path = &self.path;
         let mem = &self.mem;
         // Write and truncate options set to true to clear the file

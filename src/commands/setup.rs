@@ -25,7 +25,7 @@ impl FromStr for NetworkConfig {
         // instead of default empty values
         Ok(NetworkConfig {
             iface: "".to_string(),
-            mac_addr: None,
+            mac_addr: "".to_string(),
             domain_name: "".to_string(),
             host_name: "".to_string(),
             version: 0,

@@ -2,9 +2,7 @@
 use mozim::{DhcpError, DhcpV4Client, DhcpV4Config, DhcpV4Lease as MozimV4Lease, ErrorKind};
 use netavark_proxy::cache::LeaseCache;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
-use netavark_proxy::g_rpc::{
-    Empty, Lease as NetavarkLease, MacAddress, NetworkConfig, OperationResponse,
-};
+use netavark_proxy::g_rpc::{Empty, Lease as NetavarkLease, NetworkConfig, OperationResponse};
 use netavark_proxy::{DEFAULT_CONFIG_DIR, DEFAULT_UDS_PATH};
 use std::fs;
 use std::path::Path;
@@ -16,7 +14,6 @@ use tokio_stream::wrappers::UnixListenerStream;
 
 use clap::Parser;
 use log::{debug, warn};
-use tonic::Code::InvalidArgument;
 use tonic::{transport::Server, Code, Code::Internal, Request, Response, Status};
 
 const POLL_WAIT_TIME: isize = 5;
@@ -50,19 +47,9 @@ impl NetavarkProxy for NetavarkProxyService {
         std::thread::spawn(move || {
             // Set up some common values
             let network_config: NetworkConfig = request.into_inner();
-            println!("{:#?}", ::serde_json::to_string_pretty(&network_config));
+            println!("{:#?}", serde_json::to_string_pretty(&network_config));
             // Make sure a mac address was supplied in the NetworkConfig and validate the addr if it exists
-            let mac_addr = match network_config.mac_addr {
-                Some(addr) => {
-                    if !addr.validate() {
-                        return Err(Status::new(InvalidArgument, "Invalid Mac address"));
-                    }
-                    addr
-                }
-                None => {
-                    return Err(Status::new(InvalidArgument, "No mac address supplied"));
-                }
-            };
+            let mac_addr = network_config.mac_addr;
 
             // DHCP client will be in charge of making the DORA requests to the DHCP server
             let mut client = match get_client(&network_config.iface, &network_config.version) {
@@ -79,7 +66,7 @@ impl NetavarkProxy for NetavarkProxyService {
                             // the lease must be mutable in order to add the mac address and domain name
                             let mut netavark_lease =
                                 <NetavarkLease as From<MozimV4Lease>>::from(new_lease);
-                            netavark_lease.add_mac_address(mac_addr.clone());
+                            netavark_lease.add_mac_address(&mac_addr);
                             netavark_lease.add_domain_name(network_config.domain_name);
                             if let Err(e) =
                                 cache.lock().unwrap().add_lease(&mac_addr, &netavark_lease)
@@ -115,22 +102,22 @@ impl NetavarkProxy for NetavarkProxyService {
     /// from the caching system.
     async fn teardown(
         &self,
-        request: Request<MacAddress>,
+        request: Request<NetworkConfig>,
     ) -> Result<Response<NetavarkLease>, Status> {
-        let mac_addr = request.into_inner();
+        let nc = request.into_inner();
         let empty_lease = NetavarkLease {
             t1: 0,
             t2: 0,
             lease_time: 0,
             mtu: 0,
             domain_name: "".to_string(),
-            mac_addr: Some(mac_addr.clone()),
+            mac_address: nc.mac_addr.clone(),
             is_v6: false,
             v4: None,
             v6: None,
         };
 
-        self.0.clone().lock().unwrap().remove_lease(mac_addr)?;
+        self.0.clone().lock().unwrap().remove_lease(&nc.mac_addr)?;
         Ok(Response::new(empty_lease))
     }
 
