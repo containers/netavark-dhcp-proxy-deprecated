@@ -207,11 +207,11 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     //Clean up UDS on exit
-    return match fs::remove_file(uds_path) {
+    match fs::remove_file(uds_path) {
         Ok(_) => Ok(()),
         Err(e) => {
             warn!("Could not remove the file: {}", e);
             Ok(())
         }
-    };
+    }
 }
