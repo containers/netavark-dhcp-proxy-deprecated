@@ -178,9 +178,9 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts = Opts::parse();
 
     // where we store the cache file
-    let conf_dir = opts.dir.unwrap_or(DEFAULT_CONFIG_DIR.to_string());
+    let conf_dir = opts.dir.unwrap_or_else(|| DEFAULT_CONFIG_DIR.to_string());
     // location of the grpc port
-    let uds_path = opts.uds.unwrap_or(DEFAULT_UDS_PATH.to_string());
+    let uds_path = opts.uds.unwrap_or_else(|| DEFAULT_UDS_PATH.to_string());
     // Match because parent reruns an option
     match Path::new(&uds_path).parent() {
         None => {
@@ -207,11 +207,11 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     //Clean up UDS on exit
-    return match fs::remove_file(uds_path) {
+    match fs::remove_file(uds_path) {
         Ok(_) => Ok(()),
         Err(e) => {
             warn!("Could not remove the file: {}", e);
             Ok(())
         }
-    };
+    }
 }

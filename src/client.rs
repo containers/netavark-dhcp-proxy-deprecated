@@ -41,8 +41,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     env_logger::builder().format_timestamp(None).init();
     let opts = Opts::parse();
-    let file = opts.file.unwrap_or(DEFAULT_NETWORK_CONFIG.to_string());
-    let uds_path = opts.uds.unwrap_or(DEFAULT_UDS_PATH.to_string());
+    let file = opts
+        .file
+        .unwrap_or_else(|| DEFAULT_NETWORK_CONFIG.to_string());
+    let uds_path = opts.uds.unwrap_or_else(|| DEFAULT_UDS_PATH.to_string());
 
     // We will ignore this uri because uds do not use it
     // if your connector does use the uri it will be provided
