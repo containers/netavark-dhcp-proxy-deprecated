@@ -39,12 +39,9 @@ impl Setup {
     }
 
     pub async fn exec(&self, mut conn: NetavarkProxyClient<Channel>) -> Result<Lease, Status> {
-        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         debug!("{:?}", "Setting up...");
-        println!(
-            "--> {:#?}",
+        debug!(
+            "input: {:#?}",
             serde_json::to_string_pretty(&self.config.clone())
         );
         let response = conn.setup(Request::new(self.config.clone())).await?;
