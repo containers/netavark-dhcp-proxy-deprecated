@@ -60,4 +60,5 @@ integration: $(CARGO_TARGET_DIR)
 .PHONY: validate
 validate: $(VARGO_TARGET_DIR)
 	cargo fmt --all -- --check
-	cargo clippy --no-deps --fix --
+	cargo clippy --no-deps --fix --allow-dirty -- \
+		-W clippy::unwrap_used
