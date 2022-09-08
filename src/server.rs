@@ -58,7 +58,13 @@ impl NetavarkProxy for NetavarkProxyService {
             };
             // Attempt to process for a lease 31 times. Sleep for a second every 8 attempts
             for i in 1..31 {
-                let events = client.poll(POLL_WAIT_TIME).unwrap();
+                let events = match client.poll(POLL_WAIT_TIME) {
+                    Ok(events) => events,
+                    Err(dhcp_error) => {
+                        log::error!("Error polling DHCP: {}", dhcp_error.to_string());
+                        return Err(Status::new(Internal, dhcp_error.to_string()));
+                    }
+                };
                 for event in events {
                     match client.process(event) {
                         // Lease successfully found
@@ -68,8 +74,10 @@ impl NetavarkProxy for NetavarkProxyService {
                                 <NetavarkLease as From<MozimV4Lease>>::from(new_lease);
                             netavark_lease.add_mac_address(&mac_addr);
                             netavark_lease.add_domain_name(network_config.domain_name);
-                            if let Err(e) =
-                                cache.lock().unwrap().add_lease(&mac_addr, &netavark_lease)
+                            if let Err(e) = cache
+                                .lock()
+                                .expect("Could not unlock cache. A thread was poisoned")
+                                .add_lease(&mac_addr, &netavark_lease)
                             {
                                 return Err(Status::new(
                                     Internal,
@@ -117,14 +125,22 @@ impl NetavarkProxy for NetavarkProxyService {
             v6: None,
         };
 
-        self.0.clone().lock().unwrap().remove_lease(&nc.mac_addr)?;
+        self.0
+            .clone()
+            .lock()
+            .expect("Could not unlock cache. A thread was poisoned")
+            .remove_lease(&nc.mac_addr)?;
         Ok(Response::new(empty_lease))
     }
 
     /// On teardown of the proxy the cache will be cleared gracefully.
     async fn clean(&self, request: Request<Empty>) -> Result<Response<OperationResponse>, Status> {
         log::debug!("Request from client: {:?}", request.remote_addr());
-        self.0.clone().lock().unwrap().teardown()?;
+        self.0
+            .clone()
+            .lock()
+            .expect("Could not unlock cache. A thread was poisoned")
+            .teardown()?;
         Ok(Response::new(OperationResponse { success: true }))
     }
 }

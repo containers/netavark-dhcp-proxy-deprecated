@@ -11,7 +11,7 @@ pub const DEFAULT_UDS_PATH: &str = "/var/tmp/nv-dhcp";
 pub const DEFAULT_CONFIG_DIR: &str = "";
 // Default Network configuration path
 pub const DEFAULT_NETWORK_CONFIG: &str = "/dev/stdin";
-
+#[allow(clippy::unwrap_used)]
 pub mod g_rpc {
     include!("../proto-build/netavark_proxy.rs");
     use mozim::DhcpV4Lease as MozimV4Lease;
