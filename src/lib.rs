@@ -3,6 +3,8 @@ use std::error::Error;
 
 pub mod cache;
 pub mod commands;
+pub mod dhcp_service;
+
 use std::fs::File;
 // TODO these constant destinations are not final.
 // Default UDS path for gRPC to communicate on.
@@ -11,6 +13,8 @@ pub const DEFAULT_UDS_PATH: &str = "/var/tmp/nv-dhcp";
 pub const DEFAULT_CONFIG_DIR: &str = "";
 // Default Network configuration path
 pub const DEFAULT_NETWORK_CONFIG: &str = "/dev/stdin";
+// Default epoll wait time before dhcp socket times out
+pub const DEFAULT_TIMEOUT: isize = 8;
 #[allow(clippy::unwrap_used)]
 pub mod g_rpc {
     include!("../proto-build/netavark_proxy.rs");
@@ -18,12 +22,12 @@ pub mod g_rpc {
 
     impl Lease {
         /// Add mac address to a lease
-        pub fn add_mac_address(&mut self, mac_addr: &str) {
+        pub fn add_mac_address(&mut self, mac_addr: &String) {
             self.mac_address = mac_addr.to_string()
         }
         /// Update the domain name of the lease
-        pub fn add_domain_name(&mut self, domain_name: String) {
-            self.domain_name = domain_name;
+        pub fn add_domain_name(&mut self, domain_name: &String) {
+            self.domain_name = domain_name.to_string();
         }
     }
 
