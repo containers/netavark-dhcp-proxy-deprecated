@@ -71,32 +71,33 @@ impl DhcpService {
     /// returns: Result<Lease, DhcpSearchError>. Either finds a lease successfully, finds no lease, or fails
     fn get_v4_lease(&self, mut client: DhcpV4Client) -> Result<NetavarkLease, DhcpServiceError> {
         let timeout = self.timeout;
-        let events = match client.poll(timeout) {
-            Ok(events) => events,
-            Err(dhcp_error) => {
-                log::error!("DHCP socket timed out: {}", dhcp_error.to_string());
-                return Err(DhcpServiceError::new(Timeout, dhcp_error.to_string()));
-            }
-        };
-        // Process the DHCP events after the socket has blocked
-        for event in events {
-            match client.process(event) {
-                Ok(Some(new_lease)) => {
-                    log::debug!("successfully found a lease");
-                    let mut netavark_lease = <NetavarkLease as From<MozimV4Lease>>::from(new_lease);
-                    netavark_lease.add_domain_name(&self.network_config.domain_name);
-                    netavark_lease.add_mac_address(&self.network_config.mac_addr);
-                    return Ok(netavark_lease);
+        loop {
+            match client.poll(timeout) {
+                Ok(events) => {
+                    for event in events {
+                        match client.process(event) {
+                            Ok(Some(new_lease)) => {
+                                log::debug!("successfully found a lease");
+                                let mut netavark_lease =
+                                    <NetavarkLease as From<MozimV4Lease>>::from(new_lease);
+                                netavark_lease.add_domain_name(&self.network_config.domain_name);
+                                netavark_lease.add_mac_address(&self.network_config.mac_addr);
+                                return Ok(netavark_lease);
+                            }
+                            Err(err) => {
+                                return Err(DhcpServiceError::new(NoLease, err.to_string()))
+                            }
+                            Ok(None) => { /*No lease found, keep looking for one*/ }
+                        };
+                    }
                 }
-                Err(err) => return Err(DhcpServiceError::new(NoLease, err.to_string())),
-                Ok(None) => { /*No lease found, keep looking for one*/ }
+                Err(dhcp_error) => {
+                    log::error!("DHCP socket timed out: {}", dhcp_error.to_string());
+                    return Err(DhcpServiceError::new(Timeout, dhcp_error.to_string()));
+                }
             };
+            log::info!("Socket timed out, retrying for a lease");
         }
-        log::error!("Could not find a lease");
-        Err(DhcpServiceError::new(
-            NoLease,
-            "Could not find a lease".to_string(),
-        ))
     }
     /// TODO
     /// Performs a DHCP DORA on a IPv6 network configuration.
