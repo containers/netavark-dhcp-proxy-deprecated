@@ -41,7 +41,7 @@ impl NetavarkProxy for NetavarkProxyService {
         debug!("Request from client {:?}", request.remote_addr());
 
         let cache = self.0.clone();
-        let timeout = self.1.clone();
+        let timeout = self.1;
         //Spawn a new thread to avoid tokio runtime issues
         std::thread::spawn(move || {
             // Set up some common values
@@ -125,9 +125,9 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts = Opts::parse();
 
     // where we store the cache file
-    let conf_dir = opts.dir.unwrap_or(DEFAULT_CONFIG_DIR.to_string());
+    let conf_dir = opts.dir.unwrap_or_else(|| DEFAULT_CONFIG_DIR.to_string());
     // location of the grpc port
-    let uds_path = opts.uds.unwrap_or(DEFAULT_UDS_PATH.to_string());
+    let uds_path = opts.uds.unwrap_or_else(|| DEFAULT_UDS_PATH.to_string());
     // timeout time if no leases are found
     let timeout = opts.timeout.unwrap_or(DEFAULT_TIMEOUT);
 
