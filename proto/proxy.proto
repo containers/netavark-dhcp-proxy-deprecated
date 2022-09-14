@@ -29,14 +29,14 @@ message Lease {
 }
 
 message DhcpV4Lease {
-  Ipv4Addr siaddr = 1;
-  Ipv4Addr yiaddr = 2;
-  Ipv4Addr srv_id = 6;
-  Ipv4Addr subnet_mask = 7;
-  Ipv4Addr broadcast_addr = 8;
-  repeated Ipv4Addr dns_servers = 9;
-  repeated Ipv4Addr gateways = 10;
-  repeated Ipv4Addr ntp_servers = 11;
+  string siaddr = 1;
+  string yiaddr = 2;
+  string srv_id = 6;
+  string subnet_mask = 7;
+  string broadcast_addr = 8;
+  repeated string dns_servers = 9;
+  repeated string gateways = 10;
+  repeated string ntp_servers = 11;
   string host_name = 13;
 }
 

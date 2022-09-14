@@ -67,6 +67,8 @@ _run_unit_aarch64() {
 }
 
 _run_integration() {
+	dnf -y install dnsmasq jq
+	make all
     make integration
 }
 
@@ -90,6 +92,7 @@ msg "************************************************************"
 ((${SETUP_ENVIRONMENT:-0})) || \
     die "Expecting setup.sh to have completed successfully"
 
+mkdir -p "${CIRRUS_WORKING_DIR}"
 cd "${CIRRUS_WORKING_DIR}/"
 
 handler="_run_${1:-noarg}"

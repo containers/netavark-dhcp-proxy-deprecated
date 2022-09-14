@@ -59,7 +59,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let input_config = netavark_proxy::g_rpc::NetworkConfig::load(&file)?;
-    println!("{:?}", ::serde_json::to_string_pretty(&input_config));
 
     let client = NetavarkProxyClient::new(channel);
 
@@ -73,7 +72,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             t.exec(client).await?
         }
     };
-
-    println!("{:#?}", ::serde_json::to_string_pretty(&result));
+    let pp = ::serde_json::to_string_pretty(&result);
+    // TODO this should probably return an empty lease so consumers
+    // don't soil themselves
+    println!("{}", pp.unwrap_or_else(|_| "".to_string()));
     Ok(())
 }
