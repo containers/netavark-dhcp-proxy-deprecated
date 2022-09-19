@@ -1,6 +1,6 @@
 #![cfg_attr(not(unix), allow(unused_imports))]
 use clap::Parser;
-use log::{debug, warn};
+use log::{debug, error, warn};
 use macaddr::MacAddr;
 use netavark_proxy::cache::LeaseCache;
 use netavark_proxy::dhcp_service::DhcpService;
@@ -13,6 +13,8 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 #[cfg(unix)]
 use tokio::net::UnixListener;
+#[cfg(unix)]
+use tokio::signal::unix::{signal, SignalKind};
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{transport::Server, Code, Code::Internal, Request, Response, Status};
@@ -130,6 +132,31 @@ struct Opts {
     timeout: Option<isize>,
 }
 
+/// Handle SIGINT signal.
+///
+/// Will wait until process receives a SIGINT/ ctrl+c signal and then clean up and shut down
+async fn handle_signal(uds_path: String) {
+    tokio::spawn(async move {
+        // Handle signal hooks with expect, it is important these are setup so data is not corrupted
+        let mut sigterm = signal(SignalKind::terminate()).expect("Could not set up SIGTERM hook");
+        let mut sigint = signal(SignalKind::interrupt()).expect("Could not set up SIGINT hook");
+        // Wait for either a SIGINT or a SIGTERM to clean up
+        tokio::select! {
+            _ = sigterm.recv() => {
+                warn!("Received SIGTERM, cleaning up and exiting");
+            }
+            _ = sigint.recv() => {
+                warn!("Received SIGINT, cleaning up and exiting");
+            }
+        }
+        if let Err(e) = fs::remove_file(uds_path) {
+            error!("Could not close uds socket: {}", e);
+        }
+
+        std::process::exit(0x0100);
+    });
+}
+
 #[tokio::main]
 #[allow(unused)]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -142,8 +169,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let uds_path = opts.uds.unwrap_or_else(|| DEFAULT_UDS_PATH.to_string());
     // timeout time if no leases are found
     let timeout = opts.timeout.unwrap_or(DEFAULT_TIMEOUT);
-
-    // Match because parent reruns an option
+    // Create a new uds socket path
     match Path::new(&uds_path).parent() {
         None => {
             log::error!("Could not find uds path");
@@ -151,7 +177,9 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(f) => tokio::fs::create_dir_all(f).await?,
     }
-    // Listen on UDS path
+    // Watch for signals after the uds path has been created, so that the socket can be closed.
+    handle_signal(uds_path.clone()).await;
+    // Bind to the UDS socket for gRPC calls
     let uds = UnixListener::bind(&uds_path)?;
     let uds_stream = UnixListenerStream::new(uds);
 
@@ -168,13 +196,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(NetavarkProxyServer::new(netavark_proxy_service))
         .serve_with_incoming(uds_stream)
         .await?;
-
+    Ok(())
     //Clean up UDS on exit
-    match fs::remove_file(uds_path) {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            warn!("Could not remove the file: {}", e);
-            Ok(())
-        }
-    }
 }
