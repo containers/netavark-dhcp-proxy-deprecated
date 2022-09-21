@@ -9,7 +9,7 @@ env:
     # The default is 'sh' if unspecified
     CIRRUS_SHELL: "/bin/bash"
     # Location where source repo. will be cloned
-    CIRRUS_WORKING_DIR: "/var/tmp/nv-proxy"
+    CIRRUS_WORKING_DIR: "/var/tmp/netavark-dhcp-proxy"
     # Rust package cache also lives here
     CARGO_HOME: "/var/cache/cargo"
     # Rust compiler output lives here (see Makefile)
@@ -164,17 +164,17 @@ unit_task:
   #  main_script: *main
 
 
-  #integration_task:
-  #  alias: "integration"
-  #  depends_on:
-  #    - "unit"
-  #  gce_instance: *standard_gce_x86_64
-  #  cargo_cache: *ro_cargo_cache
-  #  targets_cache: *ro_targets_cache
-  #  bin_cache: *ro_bin_cache
-  #  setup_script: *setup
-  #  main_script: *main
-  #
+integration_task:
+  alias: "integration"
+  depends_on:
+    - "unit"
+  gce_instance: *standard_gce_x86_64
+  cargo_cache: *ro_cargo_cache
+  targets_cache: *ro_targets_cache
+  bin_cache: *ro_bin_cache
+  setup_script: *setup
+  main_script: *main
+
   #
   #integration_aarch64_task:
   #  alias: "integration_aarch64"
@@ -247,7 +247,7 @@ success_task:
       #- "verify_vendor_aarch64"
     - "unit"
       #- "unit_aarch64"
-      #- "integration"
+    - "integration"
       #- "integration_aarch64"
     - "meta"
     - "ubuntu20_build"

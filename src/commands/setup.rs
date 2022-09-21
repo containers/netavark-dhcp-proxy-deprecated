@@ -10,7 +10,7 @@ use tonic::{Request, Status};
 #[derive(Parser, Debug)]
 pub struct Setup {
     /// Network namespace path
-    #[clap(forbid_empty_values = true, required = true)]
+    #[clap(forbid_empty_values = false, required = false)]
     config: NetworkConfig,
 }
 

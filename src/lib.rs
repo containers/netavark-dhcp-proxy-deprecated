@@ -55,11 +55,12 @@ pub mod g_rpc {
                 domain_name,
                 mac_address: "".to_string(),
                 v4: Some(DhcpV4Lease {
-                    siaddr: Some(Ipv4Addr::from(l.siaddr)),
-                    yiaddr: Some(Ipv4Addr::from(l.yiaddr)),
-                    srv_id: Some(Ipv4Addr::from(l.srv_id)),
-                    subnet_mask: Some(Ipv4Addr::from(l.subnet_mask)),
-                    broadcast_addr: Some(Ipv4Addr::from(l.broadcast_addr)),
+                    siaddr: l.siaddr.to_string(),
+                    yiaddr: l.yiaddr.to_string(),
+                    srv_id: l.srv_id.to_string(),
+                    subnet_mask: l.subnet_mask.to_string(),
+                    // TODO something is jacked with8 broadcast, moving on
+                    broadcast_addr: "".to_string(),
                     dns_servers: handle_ip_vectors(l.dns_srvs),
                     gateways: handle_ip_vectors(l.gateways),
                     ntp_servers: handle_ip_vectors(l.ntp_srvs),
@@ -71,11 +72,11 @@ pub mod g_rpc {
         }
     }
 
-    fn handle_ip_vectors(ip: Option<Vec<std::net::Ipv4Addr>>) -> Vec<Ipv4Addr> {
-        let mut ips: Vec<Ipv4Addr> = Vec::new();
+    fn handle_ip_vectors(ip: Option<Vec<std::net::Ipv4Addr>>) -> Vec<String> {
+        let mut ips: Vec<String> = Vec::new();
         if let Some(j) = ip {
             for ip in j {
-                ips.push(Ipv4Addr::from(ip));
+                ips.push(ip.to_string());
             }
         }
         ips
