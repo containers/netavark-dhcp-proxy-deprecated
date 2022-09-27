@@ -3,7 +3,7 @@ use crate::g_rpc::{Lease, NetworkConfig};
 use clap::Parser;
 use log::debug;
 use tonic::transport::Channel;
-use tonic::{Request, Status};
+use tonic::{Request, Response, Status};
 
 #[derive(Parser, Debug)]
 pub struct Teardown {
@@ -17,9 +17,11 @@ impl Teardown {
         Self { config }
     }
 
-    pub async fn exec(&self, mut conn: NetavarkProxyClient<Channel>) -> Result<Lease, Status> {
+    pub async fn exec(
+        &self,
+        mut conn: NetavarkProxyClient<Channel>,
+    ) -> Result<Response<Lease>, Status> {
         debug!("Entering teardown");
-        let response = conn.setup(Request::new(self.config.clone())).await?;
-        Ok(response.into_inner())
+        conn.teardown(Request::new(self.config.clone())).await
     }
 }

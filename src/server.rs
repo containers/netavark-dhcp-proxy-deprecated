@@ -1,20 +1,21 @@
 #![cfg_attr(not(unix), allow(unused_imports))]
+use clap::Parser;
+use log::{debug, warn};
+use macaddr::MacAddr;
 use netavark_proxy::cache::LeaseCache;
+use netavark_proxy::dhcp_service::DhcpService;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
 use netavark_proxy::g_rpc::{Empty, Lease as NetavarkLease, NetworkConfig, OperationResponse};
 use netavark_proxy::{DEFAULT_CONFIG_DIR, DEFAULT_TIMEOUT, DEFAULT_UDS_PATH};
 use std::fs;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
-
-use clap::Parser;
-use log::{debug, warn};
-use netavark_proxy::dhcp_service::DhcpService;
-use tonic::{transport::Server, Code::Internal, Request, Response, Status};
+use tonic::{transport::Server, Code, Code::Internal, Request, Response, Status};
 
 #[derive(Debug)]
 /// This is the tonic netavark proxy service that is required to impl the Netavark Proxy trait which
@@ -46,7 +47,18 @@ impl NetavarkProxy for NetavarkProxyService {
         std::thread::spawn(move || {
             // Set up some common values
             let network_config = request.into_inner();
+
             let mac_addr = network_config.mac_addr.clone();
+            if mac_addr.is_empty() {
+                return Err(Status::new(
+                    Code::InvalidArgument,
+                    "No mac address provided",
+                ));
+            }
+            match MacAddr::from_str(&mac_addr) {
+                Ok(_) => {}
+                Err(_) => return Err(Status::new(Code::InvalidArgument, "Invalid mac address")),
+            }
             // create a dhcp service to get a lease.
             let lease = DhcpService::new(network_config, timeout)?.get_lease()?;
             // Try and add the lease information to the cache
@@ -143,7 +155,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let uds = UnixListener::bind(&uds_path)?;
     let uds_stream = UnixListenerStream::new(uds);
 
-    let cache = match LeaseCache::new(None) {
+    let cache = match LeaseCache::new(conf_dir) {
         Ok(c) => Arc::new(Mutex::new(c)),
         Err(e) => {
             log::error!("Could not setup the cache: {}", e.to_string());

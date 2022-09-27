@@ -29,8 +29,8 @@ impl LeaseCache {
     /// On success a new lease cache instance will be returned. On failure an IO error will
     /// be returned.
     /// This likely means it could not find the file directory
-    pub fn new(dir: Option<String>) -> Result<LeaseCache, io::Error> {
-        let fq_path = Path::new(dir.as_deref().unwrap_or(DEFAULT_CACHE_DIR)).join("nv-leases");
+    pub fn new(dir: String) -> Result<LeaseCache, io::Error> {
+        let fq_path = Path::new(&dir).join("nv-leases");
         debug!("lease cache file: {:?}", fq_path.to_str().unwrap_or(""));
 
         OpenOptions::new().write(true).create(true).open(&fq_path)?;
@@ -90,6 +90,12 @@ impl LeaseCache {
         debug!("remove lease: {:?}", mac_addr);
         let mem = &mut self.mem;
         // the remove function uses a reference key, so we borrow and dereference the MadAddress
+        if !mem.contains_key(mac_addr) {
+            return Result::Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "mac address not found",
+            ));
+        }
         mem.remove(mac_addr);
         // write updated memory cache to the file system
         self.save_memory_to_fs()

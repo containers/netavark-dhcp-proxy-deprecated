@@ -5,7 +5,7 @@ use log::debug;
 use std::num::ParseIntError;
 use std::str::FromStr;
 use tonic::transport::Channel;
-use tonic::{Request, Status};
+use tonic::{Request, Response, Status};
 
 #[derive(Parser, Debug)]
 pub struct Setup {
@@ -38,13 +38,15 @@ impl Setup {
         Self { config }
     }
 
-    pub async fn exec(&self, mut conn: NetavarkProxyClient<Channel>) -> Result<Lease, Status> {
+    pub async fn exec(
+        &self,
+        mut conn: NetavarkProxyClient<Channel>,
+    ) -> Result<Response<Lease>, Status> {
         debug!("{:?}", "Setting up...");
         debug!(
             "input: {:#?}",
             serde_json::to_string_pretty(&self.config.clone())
         );
-        let response = conn.setup(Request::new(self.config.clone())).await?;
-        Ok(response.into_inner())
+        conn.setup(Request::new(self.config.clone())).await
     }
 }

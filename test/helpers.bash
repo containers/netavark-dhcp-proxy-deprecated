@@ -347,7 +347,7 @@ EOF
   mkdir $dnsmasq_testdir
   echo "$dnsmasq_config" > "$dnsmasq_testdir/test.conf"
 
-   dnsmasq -lo-log-debug --log-queries --conf-dir "${dnsmasq_testdir}" -x "${DNSMASQ_PIDFILE}" &
+   dnsmasq --log-debug --log-queries --conf-dir "${dnsmasq_testdir}" -x "${DNSMASQ_PIDFILE}" &
 }
 
 #
@@ -359,7 +359,7 @@ function stop_dhcp() {
 }
 
 function start_proxy() {
-  ./bin/netavark-proxy --dir "$TMP_TESTDIR/leases" --uds "$TMP_TESTDIR/socket"  &
+  ./bin/netavark-proxy --dir "$TMP_TESTDIR" --uds "$TMP_TESTDIR/socket"  &
   PROXY_PID=$!
 }
 
@@ -368,11 +368,26 @@ function stop_proxy(){
 }
 
 
+function run_setup(){
+  local conf=$1
+  echo "$conf"  > "$TMP_TESTDIR/setup.json"
+  run_client "setup" "${TMP_TESTDIR}/setup.json"
+}
+
+function run_teardown(){
+  local conf=$1
+  echo "$conf"  > "$TMP_TESTDIR/teardown.json"
+  run_client "teardown" "${TMP_TESTDIR}/teardown.json"
+}
+
+# The first arg is the incoming config from "netavark"
 ###################
 #  run_client # use test client
 ###################
 function run_client(){
-  run_helper "./bin/client" --uds "$TMP_TESTDIR/socket" -f "${TESTSDIR}/configfiles/basic.json" "setup" "foo"
+  local verb=$1
+  local conf=$2
+  run_helper "./bin/client" --uds "$TMP_TESTDIR/socket" -f "${conf}" "${verb}" "foo"
 }
 
 ###################

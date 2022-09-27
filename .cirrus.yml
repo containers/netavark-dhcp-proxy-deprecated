@@ -19,7 +19,7 @@ env:
     NETAVARK_URL: "https://api.cirrus-ci.com/v1/artifact/github/containers/netavark-dhcp-proxy/success/binary.zip?branch=${NETAVARK_BRANCH}"
     # Save a little typing (path relative to $CIRRUS_WORKING_DIR)
     SCRIPT_BASE: "./contrib/cirrus"
-    IMAGE_SUFFIX: "c5419329914142720"
+    IMAGE_SUFFIX: "c6372887002087424"
     FEDORA_NETAVARK_IMAGE: "fedora-netavark-${IMAGE_SUFFIX}"
 
 
@@ -121,7 +121,7 @@ verify_vendor_task:
   depends_on:
     - "build"
   gce_instance: *standard_gce_x86_64
-  cargo_cache: *ro_cargo_cache
+  udo argo_cache: *ro_cargo_cache
   targets_cache: *ro_targets_cache
   bin_cache: *ro_bin_cache
   setup_script: *setup
@@ -208,18 +208,20 @@ meta_task:
         GCPPROJECT: libpod-218412
     clone_script: &noop mkdir -p $CIRRUS_WORKING_DIR  # source not needed
     script: /usr/local/bin/entrypoint.sh
-
-ubuntu20_build_task:
-    alias: ubuntu20_build
-    depends_on:
-      - "build"
-    gce_instance: *standard_gce_x86_64
-    container:
-        cpu: 2
-        memory: 2
-        image: quay.io/libpod/ubuntu20rust
-    script:
-        - cargo build
+      #
+      # disabled due to old rust version availability
+      #
+      #ubuntu20_build_task:
+      #    alias: ubuntu20_build
+      #    depends_on:
+      #      - "build"
+      #    gce_instance: *standard_gce_x86_64
+      #    container:
+      #        cpu: 2
+      #        memory: 2
+      #        image: quay.io/libpod/ubuntu20rust
+      #    script:
+      #        - cargo build
 
 centos9_build_task:
     alias: centos9_build
@@ -250,7 +252,7 @@ success_task:
     - "integration"
       #- "integration_aarch64"
     - "meta"
-    - "ubuntu20_build"
+      #    - "ubuntu20_build"
     - "centos9_build"
 
   bin_cache: *ro_bin_cache
