@@ -12,7 +12,7 @@ path = "src/server.rs"
 
 [[bin]]
 name = "client"
-path = "src/client.rs"
+path = "src/client/client.rs"
 
 [dependencies]
 serde = { version = "1.0.143", features = ["derive"] }
@@ -28,9 +28,10 @@ tower = { version = "0.4" }
 log = "0.4.17"
 nispor = "1.2.7"
 clap = { version = "3.0.12", features = ["derive"] }
-env_logger = "0.9.0"
+env_logger = "0.9.1"
 http = "0.2.8"
 macaddr = "1.0.1"
+netavark = { git = "https://github.com/containers/netavark", version="1.2.0-dev"}
 
 [build-dependencies]
 tonic-build = "0.8"
