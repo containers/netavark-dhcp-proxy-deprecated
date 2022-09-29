@@ -6,21 +6,26 @@
 load helpers
 
 @test "basic setup" {
+
       read -r -d '\0' input_config <<EOF
 {
   "iface": "veth0",
   "mac_addr": "3c:e1:a1:c1:7a:3f",
   "domain_name": "example.com",
   "host_name": "foobar",
-  "version": 0
+  "version": 0,
+  "ns_path": "$NS_PATH"
 }
   \0
 EOF
 
         run_setup "$input_config"
         # Check that gateway provided is the first IP in the subnet
-        assert `echo "$output" | jq -r .v4.siaddr` == $(gateway_from_subnet "$SUBNET_CIDR")
+        assert `echo "$output" | jq -r .siaddr` == $(gateway_from_subnet "$SUBNET_CIDR")
+        container_ip=$(echo "$output" | jq -r .yiaddr)
+        has_ip "$container_ip"
 }
+
 
 @test "empty interface should fail" {
       read -r -d '\0' input_config <<EOF
@@ -29,7 +34,8 @@ EOF
   "mac_addr": "3c:e1:a1:c1:7a:3f",
   "domain_name": "example.com",
   "host_name": "foobar",
-  "version": 0
+  "version": 0,
+  "ns_path": "$NS_PATH"
 }
   \0
 EOF
@@ -45,7 +51,8 @@ EOF
   "mac_addr": "",
   "domain_name": "example.com",
   "host_name": "foobar",
-  "version": 0
+  "version": 0,
+  "ns_path": "$NS_PATH"
 }
   \0
 EOF
@@ -61,7 +68,8 @@ EOF
   "mac_addr": "",
   "domain_name": "example.com",
   "host_name": "foobar",
-  "version": 0
+  "version": 0,
+  "ns_path": "$NS_PATH"
 }
   \0
 EOF
@@ -77,7 +85,8 @@ EOF
   "mac_addr": "123",
   "domain_name": "example.com",
   "host_name": "foobar",
-  "version": 0
+  "version": 0,
+  "ns_path": "$NS_PATH"
 }
   \0
 EOF

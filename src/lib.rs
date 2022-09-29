@@ -3,7 +3,8 @@ use std::error::Error;
 
 pub mod cache;
 pub mod dhcp_service;
-mod types;
+pub mod ip;
+pub mod types;
 
 use std::fs::File;
 // TODO these constant destinations are not final.
@@ -31,13 +32,6 @@ pub mod g_rpc {
         }
     }
 
-    impl DhcpV4Lease {
-        /// update the host name. This is only applicable to dhcpv4 leases
-        pub fn add_host_name(&mut self, host_name: String) {
-            self.host_name = host_name;
-        }
-    }
-
     impl From<MozimV4Lease> for Lease {
         fn from(l: MozimV4Lease) -> Lease {
             // Since these fields are optional as per mozim. Match them first and then set them
@@ -54,19 +48,16 @@ pub mod g_rpc {
                 mtu,
                 domain_name,
                 mac_address: "".to_string(),
-                v4: Some(DhcpV4Lease {
-                    siaddr: l.siaddr.to_string(),
-                    yiaddr: l.yiaddr.to_string(),
-                    srv_id: l.srv_id.to_string(),
-                    subnet_mask: l.subnet_mask.to_string(),
-                    // TODO something is jacked with8 broadcast, moving on
-                    broadcast_addr: "".to_string(),
-                    dns_servers: handle_ip_vectors(l.dns_srvs),
-                    gateways: handle_ip_vectors(l.gateways),
-                    ntp_servers: handle_ip_vectors(l.ntp_srvs),
-                    host_name: l.host_name.unwrap_or_else(|| String::from("")),
-                }),
-                v6: None,
+                siaddr: l.siaddr.to_string(),
+                yiaddr: l.yiaddr.to_string(),
+                srv_id: l.srv_id.to_string(),
+                subnet_mask: l.subnet_mask.to_string(),
+                // TODO something is jacked with8 broadcast, moving on
+                broadcast_addr: "".to_string(),
+                dns_servers: handle_ip_vectors(l.dns_srvs),
+                gateways: handle_ip_vectors(l.gateways),
+                ntp_servers: handle_ip_vectors(l.ntp_srvs),
+                host_name: l.host_name.unwrap_or_else(|| String::from("")),
                 is_v6: false,
             }
         }

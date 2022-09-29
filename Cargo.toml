@@ -31,7 +31,9 @@ clap = { version = "3.0.12", features = ["derive"] }
 env_logger = "0.9.1"
 http = "0.2.8"
 macaddr = "1.0.1"
-netavark = { git = "https://github.com/containers/netavark", version="1.2.0-dev"}
+netavark = { git = "https://github.com/containers/netavark", rev="0b04857d9b3eea88029a1f03f418a2384913f679"}
+rtnetlink = "0.11.0" 
+ipnet = { version = "2", features = ["serde"] }
 
 [build-dependencies]
 tonic-build = "0.8"
