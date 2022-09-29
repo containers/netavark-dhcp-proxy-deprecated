@@ -67,7 +67,6 @@ _run_unit_aarch64() {
 }
 
 _run_integration() {
-	dnf -y install dnsmasq jq
 	make all
     make integration
 }

@@ -22,7 +22,7 @@ endif
 
 # Run all builds on 4 cpus
 build-release:
-	cargo build --release -j 4
+	cargo build --release
 
 
 .PHONY: all
@@ -37,7 +37,7 @@ $(CARGO_TARGET_DIR):
 
 .PHONY: build
 build: bin $(CARGO_TARGET_DIR)
-	cargo build -j 4 $(release)
+	cargo build  $(release)
 	cp $(CARGO_TARGET_DIR)/$(profile)/server bin/netavark-proxy$(if $(debug),.debug,)
 	cp $(CARGO_TARGET_DIR)/$(profile)/client bin/client$(if $(debug),.debug,)
 
@@ -60,5 +60,5 @@ integration: $(CARGO_TARGET_DIR)
 .PHONY: validate
 validate: $(VARGO_TARGET_DIR)
 	cargo fmt --all -- --check
-	cargo clippy --no-deps --fix --allow-dirty -- \
-		-W clippy::unwrap_used
+	cargo clippy --no-deps --fix --allow-dirty -- 
+		
