@@ -1,0 +1,6 @@
+[Unit]
+Description=Netavark DHCP Proxy for per-connection netavark clients
+
+[Socket]
+ListenStream=%t/nv-dhcp/nv-dhcp-proxy.sock
+Accept=yes

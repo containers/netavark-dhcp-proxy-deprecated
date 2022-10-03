@@ -40,11 +40,12 @@ build: bin $(CARGO_TARGET_DIR)
 	cargo build  $(release)
 	cp $(CARGO_TARGET_DIR)/$(profile)/server bin/netavark-proxy$(if $(debug),.debug,)
 	cp $(CARGO_TARGET_DIR)/$(profile)/client bin/client$(if $(debug),.debug,)
+	sudo cp -R $(CARGO_TARGET_DIR)/$(profile)/server /usr/local/bin/netavark-proxy$(if $(debug),.debug,)
 
 clean:
 	rm -fr bin
 	cargo clean
-	rm -f proto-build/netavark_proxy.rs
+	rm -f proto-build/netavark_proxy.rs && sudo rm -f /usr/local/bin/netavark-dhcp-proxy
 
 .PHONY: test
 test: unit integration

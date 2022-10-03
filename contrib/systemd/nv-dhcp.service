@@ -1,0 +1,16 @@
+[Unit]
+Description=Netavark DHCP proxy
+Requires=nv-dhcp.socket
+After=nv-dhcp.socket
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+Delegate=true
+Restart=always
+KillMode=process
+ExecStart=/usr/local/bin/netavark-proxy
+
+[Install]
+WantedBy=default.target
+
