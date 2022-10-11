@@ -7,11 +7,13 @@ use tonic::transport::Endpoint;
 use tonic::{Code, Status};
 use tower::service_fn;
 
-//    ** This client represents the netavark binary which will establish a connection **
-use netavark_proxy::commands::{setup, teardown};
+use commands::{setup, teardown};
+
 use netavark_proxy::g_rpc::netavark_proxy_client::NetavarkProxyClient;
 use netavark_proxy::g_rpc::Lease;
 use netavark_proxy::{DEFAULT_NETWORK_CONFIG, DEFAULT_UDS_PATH};
+
+pub mod commands;
 
 #[derive(Parser, Debug)]
 #[clap(version = env!("CARGO_PKG_VERSION"))]
@@ -98,8 +100,6 @@ fn process_failure(status: Status) -> tonic::Response<Lease> {
     let mut rc: i32 = 1;
 
     match status.code() {
-        Code::Ok => {}
-        Code::Cancelled => {}
         Code::Unknown => {
             rc = 155;
         }
@@ -110,17 +110,7 @@ fn process_failure(status: Status) -> tonic::Response<Lease> {
         Code::NotFound => {
             rc = 6;
         }
-        Code::AlreadyExists => {}
-        Code::PermissionDenied => {}
-        Code::ResourceExhausted => {}
-        Code::FailedPrecondition => {}
-        Code::Aborted => {}
-        Code::OutOfRange => {}
-        Code::Unimplemented => {}
-        Code::Internal => {}
-        Code::Unavailable => {}
-        Code::DataLoss => {}
-        Code::Unauthenticated => {}
+        _ => {}
     }
     process::exit(rc)
 }

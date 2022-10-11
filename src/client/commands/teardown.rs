@@ -1,7 +1,7 @@
-use crate::g_rpc::netavark_proxy_client::NetavarkProxyClient;
-use crate::g_rpc::{Lease, NetworkConfig};
 use clap::Parser;
 use log::debug;
+use netavark_proxy::g_rpc::netavark_proxy_client::NetavarkProxyClient;
+use netavark_proxy::g_rpc::{Lease, NetworkConfig};
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 

@@ -2,8 +2,8 @@ use crate::g_rpc::NetworkConfig;
 use std::error::Error;
 
 pub mod cache;
-pub mod commands;
 pub mod dhcp_service;
+mod types;
 
 use std::fs::File;
 // TODO these constant destinations are not final.
