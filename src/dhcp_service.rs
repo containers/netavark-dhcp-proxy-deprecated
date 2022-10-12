@@ -39,11 +39,11 @@ pub struct DhcpService {
 }
 
 impl DhcpService {
-    pub fn new(nc: NetworkConfig, timeout: isize) -> Result<DhcpService, DhcpServiceError> {
-        let client = Self::create_client(&nc)?;
+    pub fn new(nc: &NetworkConfig, timeout: isize) -> Result<DhcpService, DhcpServiceError> {
+        let client = Self::create_client(nc)?;
         Ok(DhcpService {
             client: Some(client),
-            network_config: nc,
+            network_config: nc.clone(),
             timeout,
         })
     }

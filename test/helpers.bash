@@ -4,6 +4,8 @@ PROXY_PID=
 TMP_TESTDIR=
 DNSMASQ_PIDFILE=
 SUBNET_CIDR=
+NS_PATH=
+NS_NAME=
 
 
 # Netavark binary to run
@@ -84,6 +86,14 @@ function run_helper() {
 
     # unset
     unset expected_rc
+}
+
+################
+#  run_in_container_netns  #  Run args in container netns
+################
+#
+function run_in_container_netns() {
+    run_helper ip netns exec "${NS_NAME}" "$@"
 }
 
 #########
@@ -232,12 +242,16 @@ function assert_json() {
 
 function setup() {
   echo "### Setup ###"
+  NS_PATH="/var/run/netns/$(random_string)"
+  NS_NAME=$(basename "$NS_PATH")
+  ip netns add "${NS_NAME}"
   basic_setup
 }
 
 function teardown() {
   echo "### Teardown ###"
   basic_teardown
+  ip netns delete "${NS_NAME}"
 }
 
 function basic_teardown(){
@@ -247,16 +261,16 @@ function basic_teardown(){
   remove_veth "veth0" "br0"
   remove_bridge "br0"
   stop_dhcp "$DNSMASQ_PID"
+  run_in_container_netns ip link set lo down
 }
 
 
 function basic_setup() {
-  # TODO
-  # Make dynamic
   SUBNET_CIDR=$(random_subnet)
   set_tmpdir
   add_bridge "br0"
   add_veth "veth0" "br0"
+  run_in_container_netns ip link set lo up
   run_dhcp "$TESTSDIR/dnsmasqfiles"
   DNSMASQ_PID="$output"
   start_proxy
@@ -268,9 +282,9 @@ function basic_setup() {
 function add_bridge() {
   local bridge_name="$1"
   br_cidr=$(gateway_from_subnet "$SUBNET_CIDR")
-  run_helper brctl addbr $bridge_name
-  run_helper ifconfig $bridge_name $br_cidr up
-	run_helper firewall-cmd  --add-interface=$bridge_name --zone=trusted
+  run_in_container_netns brctl addbr $bridge_name
+  run_in_container_netns ifconfig $bridge_name $br_cidr up
+	run_in_container_netns firewall-cmd  --add-interface=$bridge_name --zone=trusted
 }
 
 #
@@ -278,9 +292,10 @@ function add_bridge() {
 #
 function remove_bridge() {
   local bridge_name="$1"
-	run_helper firewall-cmd  --remove-interface=$bridge_name --zone=trusted
-  run_helper ip link set $bridge_name down
-  run_helper brctl delbr $bridge_name
+	run_in_container_netns firewall-cmd  --remove-interface="$bridge_name" --zone=trusted
+  run_in_container_netns ip link set "$bridge_name" down
+  # shellcheck disable=SC2086
+  run_in_container_netns brctl delbr $bridge_name
 }
 
 #
@@ -291,10 +306,10 @@ function remove_veth() {
   local bridge_name="$2"
   local veth_br_name="${veth_name}br"
 
-  run_helper ip link set "$veth_br_name" down
-  run_helper ip link set "$veth_name" down
-  run_helper brctl delif "$bridge_name" "$veth_br_name"
-  run_helper ip link del "$veth_br_name" type veth peer name "$veth_name"
+  run_in_container_netns ip link set "$veth_br_name" down
+  run_in_container_netns ip link set "$veth_name" down
+  run_in_container_netns brctl delif "$bridge_name" "$veth_br_name"
+  run_in_container_netns ip link del "$veth_br_name" type veth peer name "$veth_name"
 }
 
 #
@@ -304,10 +319,10 @@ function add_veth() {
   local veth_name="$1"
   local bridge_name="$2"
   local veth_br_name="${veth_name}br"
-  run_helper ip link add "$veth_br_name" type veth peer name "$veth_name"
-  run_helper brctl addif "$bridge_name" "$veth_br_name"
-  run_helper ip link set "$veth_br_name" up
-  run_helper ip link set "$veth_name" up
+  run_in_container_netns ip link add "$veth_br_name" type veth peer name "$veth_name"
+  run_in_container_netns brctl addif "$bridge_name" "$veth_br_name"
+  run_in_container_netns ip link set "$veth_br_name" up
+  run_in_container_netns ip link set "$veth_name" up
 }
 
 #
@@ -347,7 +362,7 @@ EOF
   mkdir $dnsmasq_testdir
   echo "$dnsmasq_config" > "$dnsmasq_testdir/test.conf"
 
-   dnsmasq --log-debug --log-queries --conf-dir "${dnsmasq_testdir}" -x "${DNSMASQ_PIDFILE}" &
+   run_in_container_netns dnsmasq --log-debug --log-queries --conf-dir "${dnsmasq_testdir}" -x "${DNSMASQ_PIDFILE}" &
 }
 
 #
@@ -359,7 +374,7 @@ function stop_dhcp() {
 }
 
 function start_proxy() {
-  ./bin/netavark-proxy --dir "$TMP_TESTDIR" --uds "$TMP_TESTDIR/socket"  &
+  run_in_container_netns ./bin/netavark-proxy --dir "$TMP_TESTDIR" --uds "$TMP_TESTDIR/socket"  &
   PROXY_PID=$!
 }
 
@@ -370,6 +385,8 @@ function stop_proxy(){
 
 function run_setup(){
   local conf=$1
+  NS_PATH=$(echo "${conf}" | jq -r .ns_path)
+  NS_NAME=$(basename "$NS_PATH")
   echo "$conf"  > "$TMP_TESTDIR/setup.json"
   run_client "setup" "${TMP_TESTDIR}/setup.json"
 }
@@ -387,7 +404,7 @@ function run_teardown(){
 function run_client(){
   local verb=$1
   local conf=$2
-  run_helper "./bin/client" --uds "$TMP_TESTDIR/socket" -f "${conf}" "${verb}" "foo"
+  run_in_container_netns "./bin/client" --uds "$TMP_TESTDIR/socket" -f "${conf}" "${verb}" "foo"
 }
 
 ###################
@@ -462,4 +479,17 @@ function generate_mac(){
 
 function set_tmpdir(){
   TMP_TESTDIR=$(mktemp -d /tmp/nv-proxyXXX)
+}
+
+###################
+#  random_string  #  Pseudorandom alphanumeric string of given length
+###################
+function random_string() {
+    local length=${1:-10}
+    head /dev/urandom | tr -dc a-zA-Z0-9 | head -c$length
+}
+
+function has_ip() {
+  local container_ip=$1
+  run_in_container_netns ip -j address show tun0 | jq .[0].addr_info | jq -c 'map(select(.local | contains("$container_ip")))'
 }

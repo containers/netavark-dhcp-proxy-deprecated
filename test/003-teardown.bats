@@ -13,7 +13,8 @@ load helpers
   "mac_addr": "${random_mac}",
   "domain_name": "example.com",
   "host_name": "foobar",
-  "version": 0
+  "version": 0,
+  "ns_path": "$NS_PATH"
 }
   \0
 EOF

@@ -6,6 +6,7 @@ use netavark_proxy::cache::LeaseCache;
 use netavark_proxy::dhcp_service::DhcpService;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
 use netavark_proxy::g_rpc::{Empty, Lease as NetavarkLease, NetworkConfig, OperationResponse};
+use netavark_proxy::ip;
 use netavark_proxy::{DEFAULT_CONFIG_DIR, DEFAULT_TIMEOUT, DEFAULT_UDS_PATH};
 use std::fs;
 use std::path::Path;
@@ -46,7 +47,8 @@ impl NetavarkProxy for NetavarkProxyService {
         //Spawn a new thread to avoid tokio runtime issues
         std::thread::spawn(move || {
             // Set up some common values
-            let network_config = request.into_inner();
+            let network_config = &request.into_inner();
+            let interface = network_config.iface.clone();
 
             let mac_addr = network_config.mac_addr.clone();
             if mac_addr.is_empty() {
@@ -72,6 +74,11 @@ impl NetavarkProxy for NetavarkProxyService {
                     format!("Error caching the lease: {}", e),
                 ));
             }
+
+            // Switch into the container namespace and
+            // perform tcp/ip setup
+            ip::setup(&lease, &interface, &network_config.ns_path.to_string())?;
+
             Ok(Response::new(lease))
         })
         .join()
@@ -92,8 +99,15 @@ impl NetavarkProxy for NetavarkProxyService {
             domain_name: "".to_string(),
             mac_address: nc.mac_addr.clone(),
             is_v6: false,
-            v4: None,
-            v6: None,
+            siaddr: "".to_string(),
+            yiaddr: "".to_string(),
+            srv_id: "".to_string(),
+            subnet_mask: "".to_string(),
+            broadcast_addr: "".to_string(),
+            dns_servers: vec![],
+            gateways: vec![],
+            ntp_servers: vec![],
+            host_name: "".to_string(),
         };
 
         self.0

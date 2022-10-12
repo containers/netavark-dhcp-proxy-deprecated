@@ -13,6 +13,7 @@ message NetworkConfig {
   string domain_name = 4;
   string host_name = 5;
   Version version = 6;
+  string ns_path = 7;
 
 }
 // Lease can either contain a IPv4 or IPv6 DHCP lease, and the common IP information
@@ -24,26 +25,17 @@ message Lease {
   string domain_name = 5;
   string mac_address= 6;
   bool isV6 = 10;
-  DhcpV4Lease v4 = 11;
-  DhcpV6Lease v6 = 12;
+  string siaddr = 11;
+  string yiaddr = 12;
+  string srv_id = 16;
+  string subnet_mask = 17;
+  string broadcast_addr = 18;
+  repeated string dns_servers = 19;
+  repeated string gateways = 20;
+  repeated string ntp_servers = 21;
+  string host_name = 22;
 }
 
-message DhcpV4Lease {
-  string siaddr = 1;
-  string yiaddr = 2;
-  string srv_id = 6;
-  string subnet_mask = 7;
-  string broadcast_addr = 8;
-  repeated string dns_servers = 9;
-  repeated string gateways = 10;
-  repeated string ntp_servers = 11;
-  string host_name = 13;
-}
-
-// Todo implement v6 lease
-message DhcpV6Lease {
-
-}
 // Empty Message to send when calling for a shutdown
 message Empty{}
 
