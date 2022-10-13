@@ -91,6 +91,26 @@ fn handle_gws(g: Vec<String>, netmask: &str) -> Result<Vec<IpNet>, ProxyError> {
     Ok(gws)
 }
 
+#[test]
+fn test_bad_gw_handle_gws() {
+    let gws = vec!["192.168.1.1".to_string(), "10.10.10".into()];
+    let netmask = "255.255.255.0";
+    assert!(handle_gws(gws, netmask).is_err())
+}
+
+#[test]
+fn test_bad_subnet_handle_gws() {
+    let gws = vec!["192.168.1.1".to_string(), "10.10.10.1".into()];
+    let netmask = "255.255.255";
+    assert!(handle_gws(gws, netmask).is_err())
+}
+
+#[test]
+fn test_handle_gws() {
+    let gws = vec!["192.168.1.1".to_string(), "10.10.10.1".into()];
+    let netmask = "255.255.255.0";
+    assert!(handle_gws(gws, netmask).is_ok())
+}
 // IPV4 implementation
 impl Address<Ipv4Addr> for MacVLAN {
     fn new(l: &NetavarkLease, interface: &str) -> Result<MacVLAN, ProxyError> {
