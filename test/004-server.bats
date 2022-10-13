@@ -18,7 +18,7 @@ load helpers
 EOF
 
 # Make sure that nv-uds socket does not exist after SIGINT
-run_helper kill -s SIGINT "$PROXY_PID"
+run_in_container_netns kill -s SIGINT "$PROXY_PID"
 expected_rc=2 run_helper ls -l "$TMP_TESTDIR/socket"
 
 }
@@ -37,6 +37,6 @@ read -r -d '\0' input_config <<EOF
 EOF
 
 # Make sure that nv-uds socket does not exist after SIGINT
-run_helper kill -s SIGTERM "$PROXY_PID"
+run_in_container_netns kill -s SIGTERM "$PROXY_PID"
 expected_rc=2 run_helper ls -l "$TMP_TESTDIR/socket"
 }
