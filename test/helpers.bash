@@ -374,7 +374,7 @@ function stop_dhcp() {
 }
 
 function start_proxy() {
-  run_in_container_netns ./bin/netavark-proxy --dir "$TMP_TESTDIR" --uds "$TMP_TESTDIR/socket"  &
+  ip netns exec "$NS_NAME" ./bin/netavark-proxy --dir "$TMP_TESTDIR" --uds "$TMP_TESTDIR/socket"  &
   PROXY_PID=$!
 }
 
