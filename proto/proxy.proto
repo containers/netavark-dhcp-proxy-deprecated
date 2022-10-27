@@ -8,8 +8,9 @@ service NetavarkProxy {
 }
 // Netavark sends the proxy the Network Configuration that it wants to setup
 message NetworkConfig {
-  string iface = 1;
-  string mac_addr = 3;
+  string host_iface = 1;
+  string container_iface = 2;
+  string container_mac_addr = 3;
   string domain_name = 4;
   string host_name = 5;
   Version version = 6;

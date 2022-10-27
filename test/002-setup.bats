@@ -9,8 +9,9 @@ load helpers
 
       read -r -d '\0' input_config <<EOF
 {
-  "iface": "veth0",
-  "mac_addr": "3c:e1:a1:c1:7a:3f",
+  "host_iface": "veth1",
+  "container_iface": "veth0",
+  "container_mac_addr": "$CONTAINER_MAC",
   "domain_name": "example.com",
   "host_name": "foobar",
   "version": 0,
@@ -27,11 +28,12 @@ EOF
 }
 
 
-@test "empty interface should fail" {
+@test "empty interface should fail 155" {
       read -r -d '\0' input_config <<EOF
 {
-  "iface": "",
-  "mac_addr": "3c:e1:a1:c1:7a:3f",
+  "container_iface": "",
+  "host_iface": "veth1",
+  "container_mac_addr": "$CONTAINER_MAC",
   "domain_name": "example.com",
   "host_name": "foobar",
   "version": 0,
@@ -41,14 +43,15 @@ EOF
 EOF
         # Not providing an interface in the config should result
         # in an error and a return code of 156
-        expected_rc=156 run_setup "$input_config"
+        expected_rc=155 run_setup "$input_config"
 }
 
-@test "empty mac address should fail" {
+@test "empty mac address should fail 156" {
       read -r -d '\0' input_config <<EOF
 {
-  "iface": "veth0",
-  "mac_addr": "",
+  "container_iface": "veth0",
+  "container_mac_addr": "",
+  "host_iface": "veth1",
   "domain_name": "example.com",
   "host_name": "foobar",
   "version": 0,
@@ -61,11 +64,12 @@ EOF
         expected_rc=156 run_setup "$input_config"
 }
 
-@test "invalid interface should fail" {
+@test "invalid interface should fail 156" {
       read -r -d '\0' input_config <<EOF
 {
-  "iface": "veth0",
-  "mac_addr": "",
+  "container_iface": "veth990",
+  "host_iface": "veth1",
+  "container_mac_addr": "",
   "domain_name": "example.com",
   "host_name": "foobar",
   "version": 0,
@@ -78,11 +82,12 @@ EOF
         expected_rc=156 run_setup "$input_config"
 }
 
-@test "invalid mac address should fail" {
+@test "invalid mac address should fail 156" {
       read -r -d '\0' input_config <<EOF
 {
-  "iface": "veth0",
-  "mac_addr": "123",
+  "container_iface": "veth0",
+  "host_iface": "veth1",
+  "container_mac_addr": "123",
   "domain_name": "example.com",
   "host_name": "foobar",
   "version": 0,

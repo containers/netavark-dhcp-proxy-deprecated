@@ -6,8 +6,7 @@ use netavark_proxy::cache::LeaseCache;
 use netavark_proxy::dhcp_service::DhcpService;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
 use netavark_proxy::g_rpc::{Empty, Lease as NetavarkLease, NetworkConfig, OperationResponse};
-use netavark_proxy::ip;
-use netavark_proxy::{DEFAULT_CONFIG_DIR, DEFAULT_TIMEOUT, DEFAULT_UDS_PATH};
+use netavark_proxy::{ip, DEFAULT_CONFIG_DIR, DEFAULT_TIMEOUT, DEFAULT_UDS_PATH};
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
@@ -50,9 +49,8 @@ impl NetavarkProxy for NetavarkProxyService {
         std::thread::spawn(move || {
             // Set up some common values
             let network_config = &request.into_inner();
-            let interface = network_config.iface.clone();
-
-            let mac_addr = network_config.mac_addr.clone();
+            let container_network_interface = network_config.container_iface.clone();
+            let mac_addr = network_config.container_mac_addr.clone();
             if mac_addr.is_empty() {
                 return Err(Status::new(
                     Code::InvalidArgument,
@@ -79,7 +77,11 @@ impl NetavarkProxy for NetavarkProxyService {
 
             // Switch into the container namespace and
             // perform tcp/ip setup
-            ip::setup(&lease, &interface, &network_config.ns_path.to_string())?;
+            ip::setup(
+                &lease,
+                &container_network_interface,
+                &network_config.ns_path.to_string(),
+            )?;
 
             Ok(Response::new(lease))
         })
@@ -99,7 +101,7 @@ impl NetavarkProxy for NetavarkProxyService {
             lease_time: 0,
             mtu: 0,
             domain_name: "".to_string(),
-            mac_address: nc.mac_addr.clone(),
+            mac_address: nc.container_mac_addr.clone(),
             is_v6: false,
             siaddr: "".to_string(),
             yiaddr: "".to_string(),
@@ -116,7 +118,7 @@ impl NetavarkProxy for NetavarkProxyService {
             .clone()
             .lock()
             .expect("Could not unlock cache. A thread was poisoned")
-            .remove_lease(&nc.mac_addr)?;
+            .remove_lease(&nc.container_mac_addr)?;
         Ok(Response::new(empty_lease))
     }
 

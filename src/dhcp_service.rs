@@ -81,7 +81,8 @@ impl DhcpService {
                                 let mut netavark_lease =
                                     <NetavarkLease as From<MozimV4Lease>>::from(new_lease);
                                 netavark_lease.add_domain_name(&self.network_config.domain_name);
-                                netavark_lease.add_mac_address(&self.network_config.mac_addr);
+                                netavark_lease
+                                    .add_mac_address(&self.network_config.container_mac_addr);
                                 return Ok(netavark_lease);
                             }
                             Err(err) => {
@@ -123,15 +124,13 @@ impl DhcpService {
     /// returns: Result<DhcpV4Client, DhcpError>. If there are no invalid arguments, mozim creates a client.
     fn create_client(nc: &NetworkConfig) -> Result<DhcpClient, DhcpServiceError> {
         let version = &nc.version;
-        let iface = &nc.iface;
+        let iface = &nc.host_iface;
         match version {
             //V4
             0 => {
-                let config = match DhcpV4Config::new(iface) {
-                    Ok(config) => config,
-                    Err(err) => {
-                        return Err(DhcpServiceError::new(InvalidArgument, err.to_string()))
-                    }
+                let config = match DhcpV4Config::new_proxy(iface, &nc.container_mac_addr) {
+                    Ok(c) => c,
+                    Err(e) => return Err(DhcpServiceError::new(InvalidArgument, e.to_string())),
                 };
                 match DhcpV4Client::init(config, None) {
                     Ok(client) => Ok(DhcpClient::V4Client(Box::new(client))),

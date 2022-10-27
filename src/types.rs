@@ -14,12 +14,13 @@ impl FromStr for NetworkConfig {
         // a `NetworkConfig` object from `s` parse `s` and populate
         // instead of default empty values
         Ok(NetworkConfig {
-            iface: "".to_string(),
-            mac_addr: "".to_string(),
+            host_iface: "".to_string(),
+            container_mac_addr: "".to_string(),
             domain_name: "".to_string(),
             host_name: "".to_string(),
             version: 0,
             ns_path: "".to_string(),
+            container_iface: "".to_string(),
         })
     }
 }
