@@ -107,14 +107,17 @@ impl Address<Ipv4Addr> for MacVLAN {
                 return Err(ProxyError::new(format!("bad gateways: {}", e.to_string())));
             }
         };
-
+        let prefix_length = match get_prefix_length_v4(&l.subnet_mask) {
+            Ok(u) => u as u8,
+            Err(e) => return Err(ProxyError::new(e.to_string())),
+        };
         Ok(MacVLAN {
             address,
             gateways,
             interface: interface.to_string(),
             // Disabled for now
             // mtu: l.mtu,
-            prefix_length: 0,
+            prefix_length,
         })
     }
 
@@ -132,7 +135,7 @@ impl Address<Ipv4Addr> for MacVLAN {
     // add one or more routes to the container namespace
     fn add_gws(&self, nls: &mut Socket) -> Result<(), ProxyError> {
         debug!("adding gateways to {}", self.interface);
-        match core_utils::add_default_routes(nls, &*self.gateways) {
+        match core_utils::add_default_routes(nls, &self.gateways, None) {
             Ok(_) => Ok(()),
             Err(e) => Err(ProxyError::new(e.to_string())),
         }
@@ -164,4 +167,51 @@ pub fn setup(lease: &NetavarkLease, interface: &str, ns_path: &str) -> Result<()
 // teardown is likely unnecessary but holding place here
 pub fn teardown() -> Result<(), ProxyError> {
     todo!()
+}
+
+/// get_prefix_lengh takes a subnet mask in str form and
+/// returns its prefix length by counting ones.
+///
+/// # Arguments
+///
+/// * `netmask`: str form of subnet mask (i.e. 255.255.255.0)
+///
+/// returns: Result<u32, ProxyError>
+///
+/// # Examples
+///
+/// ```
+///
+/// ```
+fn get_prefix_length_v4(netmask: &str) -> Result<u32, ProxyError> {
+    let sub_mask = match Ipv4Addr::from_str(netmask) {
+        Ok(n) => n,
+        Err(e) => return Err(ProxyError::new(e.to_string())),
+    };
+    Ok(u32::from(sub_mask).count_ones())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_24() {
+        assert_eq!(get_prefix_length_v4("255.255.255.0").unwrap(), 24_u32)
+    }
+
+    #[test]
+    fn test_16() {
+        assert_eq!(get_prefix_length_v4("255.255.0.0").unwrap(), 16_u32)
+    }
+
+    #[test]
+    fn test_25() {
+        assert_eq!(get_prefix_length_v4("255.255.255.128").unwrap(), 25_u32)
+    }
+
+    #[test]
+    fn test_bad_input() {
+        assert!(get_prefix_length_v4("255.255.128").is_err())
+    }
 }

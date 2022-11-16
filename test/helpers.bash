@@ -1,11 +1,12 @@
 # -*- bash -*-
 
-PROXY_PID=
-TMP_TESTDIR=
+CONTAINER_MAC=
 DNSMASQ_PIDFILE=
-SUBNET_CIDR=
-NS_PATH=
 NS_NAME=
+NS_PATH=
+PROXY_PID=
+SUBNET_CIDR=
+TMP_TESTDIR=
 
 
 # Netavark binary to run
@@ -270,6 +271,9 @@ function basic_setup() {
   set_tmpdir
   add_bridge "br0"
   add_veth "veth0" "br0"
+  run_in_container_netns ip -j link show veth0
+  CONTAINER_MAC=$(echo "$output" | jq -r .[0].address)
+  add_veth "veth1" "br0"
   run_in_container_netns ip link set lo up
   run_dhcp "$TESTSDIR/dnsmasqfiles"
   DNSMASQ_PID="$output"

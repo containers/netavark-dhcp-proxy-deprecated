@@ -1,4 +1,4 @@
-use crate::g_rpc::NetworkConfig;
+use crate::g_rpc::{Lease, NetworkConfig};
 use std::error::Error;
 
 pub mod cache;
@@ -6,10 +6,18 @@ pub mod dhcp_service;
 pub mod ip;
 pub mod types;
 
+use crate::g_rpc::netavark_proxy_client::NetavarkProxyClient;
+use http::Uri;
+use log::debug;
 use std::fs::File;
+use tokio::net::UnixStream;
+use tonic::transport::{Channel, Endpoint};
+use tonic::{Request, Status};
+use tower::service_fn;
+
 // TODO these constant destinations are not final.
 // Default UDS path for gRPC to communicate on.
-pub const DEFAULT_UDS_PATH: &str = "/var/tmp/nv-dhcp";
+pub const DEFAULT_UDS_PATH: &str = "/run/podman/nv-proxy.sock";
 // Default configuration directory.
 pub const DEFAULT_CONFIG_DIR: &str = "";
 // Default Network configuration path
@@ -95,9 +103,87 @@ pub mod g_rpc {
     }
 }
 
+// A collection of functions for client side connections to the proxy server
 impl NetworkConfig {
     pub fn load(path: &str) -> Result<NetworkConfig, Box<dyn Error>> {
         let file = std::io::BufReader::new(File::open(path)?);
         Ok(serde_json::from_reader(file)?)
+    }
+
+    /// get_client is an internal function to obtain the uds endpoint
+    ///
+    /// # Arguments
+    ///
+    /// * `p`: path to uds
+    ///
+    /// returns: Result<NetavarkProxyClient<Channel>, Status>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    ///
+    /// ```
+    async fn get_client(p: String) -> Result<NetavarkProxyClient<Channel>, Status> {
+        // We do not know why the uds connections need to be done like this.  The
+        // maintainer suggested it is part of the their API.
+        let endpoint = Endpoint::try_from("http://[::1]:10000")
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let channel = endpoint
+            .connect_with_connector(service_fn(move |_: Uri| {
+                let pp = p.clone();
+                debug!("using uds path: {}", pp);
+                UnixStream::connect(pp)
+            }))
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(NetavarkProxyClient::new(channel))
+    }
+
+    /// get_lease is a wrapper function for obtaining a lease
+    /// over grpc from the nvproxy-server
+    ///
+    /// # Arguments
+    ///
+    /// * `p`: path to uds
+    ///
+    /// returns: Result<Lease, Status>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    ///
+    /// ```
+    pub async fn get_lease(self, p: &str) -> Result<Lease, Status> {
+        let mut client = NetworkConfig::get_client(p.to_string()).await?;
+        let lease = match client.setup(Request::new(self)).await {
+            Ok(l) => l.into_inner(),
+            Err(s) => return Err(s),
+        };
+        Ok(lease)
+    }
+
+    /// drop_lease is a wrapper function to release the current
+    /// DHCP lease via the nvproxy
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `p`:  path to udsz
+    ///
+    /// returns: Result<Lease, Status>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    ///
+    /// ```
+    pub async fn drop_lease(self, p: &str) -> Result<Lease, Status> {
+        let mut client = NetworkConfig::get_client(p.to_string()).await?;
+        client
+            .teardown(Request::new(self))
+            .await
+            .map(|l| l.into_inner())
     }
 }

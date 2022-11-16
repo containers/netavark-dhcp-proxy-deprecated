@@ -15,9 +15,9 @@ name = "client"
 path = "src/client/client.rs"
 
 [dependencies]
-serde = { version = "1.0.143", features = ["derive"] }
+serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.83"
-mozim = { git = "https://github.com/nispor/mozim", rev="553dea9" }
+mozim = { git = "https://github.com/nispor/mozim"}
 tonic = "0.8"
 prost = "0.11"
 futures-core = "0.3"
@@ -31,7 +31,7 @@ clap = { version = "3.0.12", features = ["derive"] }
 env_logger = "0.9.1"
 http = "0.2.8"
 macaddr = "1.0.1"
-netavark = { git = "https://github.com/containers/netavark", rev="0b04857d9b3eea88029a1f03f418a2384913f679"}
+netavark = { git = "https://github.com/containers/netavark"}
 rtnetlink = "0.11.0" 
 ipnet = { version = "2", features = ["serde"] }
 

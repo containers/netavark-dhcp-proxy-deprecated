@@ -1,9 +1,7 @@
 use clap::Parser;
 use log::debug;
-use netavark_proxy::g_rpc::netavark_proxy_client::NetavarkProxyClient;
 use netavark_proxy::g_rpc::{Lease, NetworkConfig};
-use tonic::transport::Channel;
-use tonic::{Request, Response, Status};
+use tonic::Status;
 
 #[derive(Parser, Debug)]
 pub struct Teardown {
@@ -17,11 +15,8 @@ impl Teardown {
         Self { config }
     }
 
-    pub async fn exec(
-        &self,
-        mut conn: NetavarkProxyClient<Channel>,
-    ) -> Result<Response<Lease>, Status> {
+    pub async fn exec(&self, p: &str) -> Result<Lease, Status> {
         debug!("Entering teardown");
-        conn.teardown(Request::new(self.config.clone())).await
+        self.config.clone().drop_lease(p).await
     }
 }

@@ -1,16 +1,9 @@
 use clap::{Parser, Subcommand};
-use http::Uri;
-use log::debug;
-use std::process;
-use tokio::net::UnixStream;
-use tonic::transport::Endpoint;
-use tonic::{Code, Status};
-use tower::service_fn;
-
 use commands::{setup, teardown};
+use std::process;
+use tonic::{Code, Status};
 
-use netavark_proxy::g_rpc::netavark_proxy_client::NetavarkProxyClient;
-use netavark_proxy::g_rpc::Lease;
+use netavark_proxy::g_rpc::{Lease, NetworkConfig};
 use netavark_proxy::{DEFAULT_NETWORK_CONFIG, DEFAULT_UDS_PATH};
 
 pub mod commands;
@@ -50,42 +43,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file
         .unwrap_or_else(|| DEFAULT_NETWORK_CONFIG.to_string());
     let uds_path = opts.uds.unwrap_or_else(|| DEFAULT_UDS_PATH.to_string());
-    let input_config = netavark_proxy::g_rpc::NetworkConfig::load(&file)?;
-
-    // We will ignore this uri because uds do not use it
-    // if your connector does use the uri it will be provided
-    // as the request to the `MakeConnection`.
-    let channel = Endpoint::try_from("http://[::1]:10000")?
-        .connect_with_connector(service_fn(move |_: Uri| {
-            // Connect to a Uds socket
-            let path = uds_path.clone();
-            debug!("using uds path: {}", &path);
-            UnixStream::connect(path)
-        }))
-        .await?;
-
-    let client = NetavarkProxyClient::new(channel);
-
+    let input_config = NetworkConfig::load(&file)?;
     let result = match opts.subcmd {
         SubCommand::Setup(_) => {
             let s = setup::Setup::new(input_config);
-            s.exec(client).await
+            s.exec(&uds_path).await
         }
         SubCommand::Teardown(_) => {
             let t = teardown::Teardown::new(input_config);
-            t.exec(client).await
+            t.exec(&uds_path).await
         }
     };
-
     let r = match result {
         Ok(r) => r,
         Err(e) => {
             eprintln!("Error: {}", e.message());
+            eprintln!("Error: {}", e);
             process_failure(e)
         }
     };
 
-    let pp = ::serde_json::to_string_pretty(&r.into_inner());
+    let pp = ::serde_json::to_string_pretty(&r);
     // TODO this should probably return an empty lease so consumers
     // don't soil themselves
     println!("{}", pp.unwrap_or_else(|_| "".to_string()));
@@ -96,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 // process_failure makes the client exit with a specific
 // error code
 //
-fn process_failure(status: Status) -> tonic::Response<Lease> {
+fn process_failure(status: Status) -> Lease {
     let mut rc: i32 = 1;
 
     match status.code() {

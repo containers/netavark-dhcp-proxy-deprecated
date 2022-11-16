@@ -6,11 +6,11 @@
 load helpers
 
 @test "basic teardown" {
-  random_mac=$(generate_mac)
       read -r -d '\0' input_config <<EOF
 {
-  "iface": "veth0",
-  "mac_addr": "${random_mac}",
+  "host_iface": "veth1",
+  "container_iface": "veth0",
+  "container_mac_addr": "${CONTAINER_MAC}",
   "domain_name": "example.com",
   "host_name": "foobar",
   "version": 0,
@@ -25,7 +25,7 @@ EOF
        before=$output
        # Check that our mac address is in the lease file which
        # ensures that it was added
-       run_helper jq "has(\"$random_mac\")" <<<"$before"
+       run_helper jq "has(\"$CONTAINER_MAC\")" <<<"$before"
        assert "$output" == "true"
        # Run teardown
        run_teardown "$input_config"

@@ -5,11 +5,11 @@
 
 load helpers
 @test "SIGINT Clean up" {
-  random_mac=$(generate_mac)
       read -r -d '\0' input_config <<EOF
 {
-  "iface": "veth0",
-  "mac_addr": "${random_mac}",
+  "host_iface": "veth1",
+  "container_iface": "veth0",
+  "container_mac_addr": "${CONTAINER_MAC}",
   "domain_name": "example.com",
   "host_name": "foobar",
   "version": 0
@@ -24,11 +24,10 @@ expected_rc=2 run_helper ls -l "$TMP_TESTDIR/socket"
 }
 
 @test "SIGTERM Clean up" {
-random_mac=$(generate_mac)
 read -r -d '\0' input_config <<EOF
 {
     "iface": "veth0",
-    "mac_addr": "${random_mac}",
+    "mac_addr": "${CONTAINER_MAC}",
     "domain_name": "example.com",
     "host_name": "foobar",
     "version": 0
