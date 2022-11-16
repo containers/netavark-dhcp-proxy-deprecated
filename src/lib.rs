@@ -170,7 +170,7 @@ impl NetworkConfig {
     ///
     /// # Arguments
     ///
-    /// * `p`:  path to udsz
+    /// * `p`:  path to uds
     ///
     /// returns: Result<Lease, Status>
     ///
@@ -181,9 +181,10 @@ impl NetworkConfig {
     /// ```
     pub async fn drop_lease(self, p: &str) -> Result<Lease, Status> {
         let mut client = NetworkConfig::get_client(p.to_string()).await?;
-        client
-            .teardown(Request::new(self))
-            .await
-            .map(|l| l.into_inner())
+        let lease = match client.teardown(Request::new(self)).await {
+            Ok(l) => l.into_inner(),
+            Err(e) => return Err(e),
+        };
+        Ok(lease)
     }
 }
