@@ -1,5 +1,8 @@
-use crate::dhcp_service::DhcpServiceErrorKind::{Bug, InvalidArgument, NoLease, Timeout};
+use crate::dhcp_service::DhcpServiceErrorKind::{
+    Bug, InvalidArgument, NoLease, Timeout, Unimplemented,
+};
 use crate::g_rpc::{Lease as NetavarkLease, NetworkConfig};
+use log::warn;
 use mozim::{DhcpV4Client, DhcpV4Config, DhcpV4Lease as MozimV4Lease};
 use tonic::{Code, Status};
 
@@ -11,6 +14,7 @@ pub enum DhcpServiceErrorKind {
     NoLease,
     Bug,
     LeaseExpired,
+    Unimplemented,
 }
 /// A DhcpServiceError is an error caused in the process of finding a dhcp lease
 pub struct DhcpServiceError {
@@ -61,6 +65,22 @@ impl DhcpService {
             Bug,
             "Could not initiate dhcp client".to_string(),
         ))
+    }
+
+    pub fn release_lease(mut self) -> Result<(), DhcpServiceError> {
+        // match the ip version to create the correct dhcp client
+        if let Some(client) = self.client.take() {
+            return match client {
+                DhcpClient::V4Client(v4_client) => self.release_v4_lease(*v4_client),
+                DhcpClient::V6Client() => self.release_v6_lease(),
+            };
+        }
+        // Releasing a lease is not a fatal error
+        warn!(
+            "Unable to release lease for {}",
+            self.network_config.container_mac_addr
+        );
+        Ok(())
     }
 
     /// Performs a DHCP DORA on a ipv4 network configuration.
@@ -147,6 +167,21 @@ impl DhcpService {
                 String::from("Must select a valid IP protocol 0=v4, 1=v6"),
             )),
         }
+    }
+
+    fn release_v4_lease(&self, mut _client: DhcpV4Client) -> Result<(), DhcpServiceError> {
+        // TODO
+        // Once mozim has a RELEASE message, we will implement the call here
+        // When implementing the above, make sure no error is returned bc
+        // RELEASE should be non-fatal
+        Ok(())
+    }
+
+    fn release_v6_lease(&self) -> Result<(), DhcpServiceError> {
+        return Err(DhcpServiceError::new(
+            Unimplemented,
+            "IPv6 is not supported yet".to_string(),
+        ));
     }
 }
 

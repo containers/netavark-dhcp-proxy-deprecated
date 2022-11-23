@@ -114,12 +114,20 @@ impl NetavarkProxy for NetavarkProxyService {
             host_name: "".to_string(),
         };
 
-        self.0
-            .clone()
-            .lock()
-            .expect("Could not unlock cache. A thread was poisoned")
-            .remove_lease(&nc.container_mac_addr)?;
-        Ok(Response::new(empty_lease))
+        let cache = self.0.clone();
+        let timeout = self.1;
+        std::thread::spawn(move || {
+            DhcpService::new(&nc, timeout)?.release_lease()?;
+            // Remove the client from the cache dir
+            cache
+                .clone()
+                .lock()
+                .expect("Could not unlock cache. A thread was poisoned")
+                .remove_lease(&nc.container_mac_addr)?;
+            Ok(Response::new(empty_lease))
+        })
+        .join()
+        .expect("Error joining thread")
     }
 
     /// On teardown of the proxy the cache will be cleared gracefully.
