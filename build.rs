@@ -9,7 +9,7 @@ fn main() {
         .type_attribute("netavark_proxy.DhcpV6Lease", "#[derive(serde::Serialize)]")
         .type_attribute("netavark_proxy.IPResponse", "#[derive(serde::Serialize)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(serde::Serialize)]")
-        .type_attribute("netavark_proxy.Ipv4Addr", "#[derive(serde::Serialize)]")
+        .type_attribute("netavark_proxy.NvIpv4Addr", "#[derive(serde::Serialize)]")
         .type_attribute("netavark_proxy.Lease", "#[derive(serde::Deserialize)]")
         .type_attribute(
             "netavark_proxy.DhcpV4Lease",
@@ -21,7 +21,7 @@ fn main() {
         )
         .type_attribute("netavark_proxy.IPResponse", "#[derive(serde::Deserialize)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(serde::Deserialize)]")
-        .type_attribute("netavark_proxy.Ipv4Addr", "#[derive(serde::Deserialize)]")
+        .type_attribute("netavark_proxy.NvIpv4Addr", "#[derive(serde::Deserialize)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(Eq)]")
         .type_attribute("netavark_proxy.MacAddress", "#[derive(Hash)]")
         .type_attribute(

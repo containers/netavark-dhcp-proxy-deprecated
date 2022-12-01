@@ -10,6 +10,9 @@ use crate::g_rpc::netavark_proxy_client::NetavarkProxyClient;
 use http::Uri;
 use log::debug;
 use std::fs::File;
+use std::net::AddrParseError;
+use std::net::{Ipv4Addr, Ipv6Addr};
+use std::str::FromStr;
 use tokio::net::UnixStream;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Request, Status};
@@ -24,10 +27,15 @@ pub const DEFAULT_CONFIG_DIR: &str = "";
 pub const DEFAULT_NETWORK_CONFIG: &str = "/dev/stdin";
 // Default epoll wait time before dhcp socket times out
 pub const DEFAULT_TIMEOUT: isize = 8;
+
 #[allow(clippy::unwrap_used)]
 pub mod g_rpc {
     include!("../proto-build/netavark_proxy.rs");
-    use mozim::DhcpV4Lease as MozimV4Lease;
+    use crate::types::{CustomErr, ProxyError};
+    use crate::VectorConv;
+    use mozim::DhcpV4Lease;
+    use std::net::Ipv4Addr;
+    use std::str::FromStr;
 
     impl Lease {
         /// Add mac address to a lease
@@ -40,8 +48,8 @@ pub mod g_rpc {
         }
     }
 
-    impl From<MozimV4Lease> for Lease {
-        fn from(l: MozimV4Lease) -> Lease {
+    impl From<DhcpV4Lease> for Lease {
+        fn from(l: DhcpV4Lease) -> Lease {
             // Since these fields are optional as per mozim. Match them first and then set them
             let domain_name = match l.domain_name {
                 None => String::from(""),
@@ -71,6 +79,51 @@ pub mod g_rpc {
         }
     }
 
+    impl TryFrom<Lease> for DhcpV4Lease {
+        type Error = ProxyError;
+        fn try_from(l: Lease) -> Result<Self, ProxyError> {
+            let host_name = if !l.host_name.is_empty() {
+                Some(l.host_name)
+            } else {
+                None
+            };
+            let domain_name = if !l.domain_name.is_empty() {
+                Some(l.domain_name)
+            } else {
+                None
+            };
+            let broadcast_addr = if !l.broadcast_addr.is_empty() {
+                Some(Ipv4Addr::from_str(&l.broadcast_addr)?)
+            } else {
+                None
+            };
+
+            let mtu = match u16::try_from(l.mtu) {
+                Ok(m) => Some(m),
+                Err(e) => return Err(ProxyError::new(e.to_string())),
+            };
+            // Have to do it the hard way because the struct in mozim has a private
+            // called srv_id which is a vector of 6 u8s representing the DHCP server's
+            // mac address
+            let mut lease = DhcpV4Lease::default();
+            lease.siaddr = Ipv4Addr::from_str(&l.siaddr)?;
+            lease.yiaddr = Ipv4Addr::from_str(&l.yiaddr)?;
+            lease.t1 = l.t1;
+            lease.t2 = l.t2;
+            lease.lease_time = l.lease_time;
+            lease.srv_id = Ipv4Addr::from_str(&l.srv_id)?;
+            lease.subnet_mask = Ipv4Addr::from_str(&l.subnet_mask)?;
+            lease.broadcast_addr = broadcast_addr;
+            lease.dns_srvs = l.dns_servers.to_v4_addrs()?;
+            lease.gateways = l.gateways.to_v4_addrs()?;
+            lease.ntp_srvs = l.ntp_servers.to_v4_addrs()?;
+            lease.mtu = mtu;
+            lease.host_name = host_name;
+            lease.domain_name = domain_name;
+            Ok(lease)
+        }
+    }
+
     fn handle_ip_vectors(ip: Option<Vec<std::net::Ipv4Addr>>) -> Vec<String> {
         let mut ips: Vec<String> = Vec::new();
         if let Some(j) = ip {
@@ -81,22 +134,22 @@ pub mod g_rpc {
         ips
     }
 
-    impl From<std::net::Ipv4Addr> for Ipv4Addr {
-        fn from(ip: std::net::Ipv4Addr) -> Ipv4Addr {
-            Ipv4Addr {
+    impl From<std::net::Ipv4Addr> for NvIpv4Addr {
+        fn from(ip: std::net::Ipv4Addr) -> NvIpv4Addr {
+            NvIpv4Addr {
                 octets: Vec::from(ip.octets()),
             }
         }
     }
 
-    impl From<Option<std::net::Ipv4Addr>> for Ipv4Addr {
+    impl From<Option<std::net::Ipv4Addr>> for NvIpv4Addr {
         fn from(ip: Option<std::net::Ipv4Addr>) -> Self {
             if let Some(addr) = ip {
-                return Ipv4Addr {
+                return NvIpv4Addr {
                     octets: Vec::from(addr.octets()),
                 };
             }
-            Ipv4Addr {
+            NvIpv4Addr {
                 octets: Vec::from([0, 0, 0, 0]),
             }
         }
@@ -186,5 +239,39 @@ impl NetworkConfig {
             Err(e) => return Err(e),
         };
         Ok(lease)
+    }
+}
+trait VectorConv {
+    fn to_v4_addrs(&self) -> Result<Option<Vec<Ipv4Addr>>, AddrParseError>;
+    fn to_v6_addrs(&self) -> Result<Option<Vec<Ipv6Addr>>, AddrParseError>;
+}
+
+impl VectorConv for Vec<String> {
+    fn to_v4_addrs(&self) -> Result<Option<Vec<Ipv4Addr>>, AddrParseError> {
+        if self.is_empty() {
+            return Ok(None);
+        }
+        let mut out_addrs = Vec::new();
+        for ip in self {
+            match Ipv4Addr::from_str(ip) {
+                Ok(i) => out_addrs.push(i),
+                Err(e) => return Err(e),
+            };
+        }
+        Ok(Some(out_addrs))
+    }
+
+    fn to_v6_addrs(&self) -> Result<Option<Vec<Ipv6Addr>>, AddrParseError> {
+        if self.is_empty() {
+            return Ok(None);
+        }
+        let mut out_addrs = Vec::new();
+        for ip in self {
+            match Ipv6Addr::from_str(ip) {
+                Ok(i) => out_addrs.push(i),
+                Err(e) => return Err(e),
+            };
+        }
+        Ok(Some(out_addrs))
     }
 }

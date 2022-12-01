@@ -1,4 +1,4 @@
-use crate::g_rpc::Lease as NetavarkLease;
+use crate::g_rpc::{Lease as NetavarkLease, Lease};
 use log::debug;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -86,19 +86,39 @@ impl LeaseCache {
     /// # Arguments
     ///
     /// * `mac_addr`: Mac address of the container
-    pub fn remove_lease(&mut self, mac_addr: &str) -> Result<(), io::Error> {
+    pub fn remove_lease(&mut self, mac_addr: &str) -> Result<Lease, io::Error> {
         debug!("remove lease: {:?}", mac_addr);
         let mem = &mut self.mem;
         // the remove function uses a reference key, so we borrow and dereference the MadAddress
-        if !mem.contains_key(mac_addr) {
-            return Result::Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "mac address not found",
-            ));
-        }
+        // if !mem.contains_key(mac_addr) {
+        // let lease = match self.mem.get()
+        let lease = match mem.get(mac_addr) {
+            None => Lease {
+                t1: 0,
+                t2: 0,
+                lease_time: 0,
+                mtu: 0,
+                domain_name: "".to_string(),
+                mac_address: "".to_string(),
+                is_v6: false,
+                siaddr: "".to_string(),
+                yiaddr: "".to_string(),
+                srv_id: "".to_string(),
+                subnet_mask: "".to_string(),
+                broadcast_addr: "".to_string(),
+                dns_servers: vec![],
+                gateways: vec![],
+                ntp_servers: vec![],
+                host_name: "".to_string(),
+            },
+            Some(l) => l[0].clone(),
+        };
         mem.remove(mac_addr);
         // write updated memory cache to the file system
-        self.save_memory_to_fs()
+        match self.save_memory_to_fs() {
+            Ok(_) => Ok(lease),
+            Err(e) => Err(e),
+        }
     }
 
     /// Clean up the memory and file system on tear down of the proxy server

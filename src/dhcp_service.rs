@@ -1,9 +1,11 @@
-use crate::dhcp_service::DhcpServiceErrorKind::{
-    Bug, InvalidArgument, NoLease, Timeout, Unimplemented,
-};
-use crate::g_rpc::{Lease as NetavarkLease, NetworkConfig};
+use crate::dhcp_service::DhcpServiceErrorKind::{Bug, InvalidArgument, NoLease, Timeout};
+
+use crate::g_rpc::{Lease as NetavarkLease, Lease, NetworkConfig};
 use log::warn;
-use mozim::{DhcpV4Client, DhcpV4Config, DhcpV4Lease as MozimV4Lease};
+use mozim::{
+    DhcpError, DhcpV4Client, DhcpV4Config, DhcpV4Lease as MozimV4Lease, DhcpV4Lease, ErrorKind,
+};
+
 use tonic::{Code, Status};
 
 /// The kind of DhcpServiceError that can be caused when finding a dhcp lease
@@ -67,11 +69,14 @@ impl DhcpService {
         ))
     }
 
-    pub fn release_lease(mut self) -> Result<(), DhcpServiceError> {
+    pub fn release_lease(mut self, lease: &Lease) -> Result<(), DhcpError> {
         // match the ip version to create the correct dhcp client
         if let Some(client) = self.client.take() {
             return match client {
-                DhcpClient::V4Client(v4_client) => self.release_v4_lease(*v4_client),
+                DhcpClient::V4Client(mut v4_client) => {
+                    let v4_lease = DhcpV4Lease::try_from(lease.clone())?;
+                    v4_client.release(&v4_lease)
+                }
                 DhcpClient::V6Client() => self.release_v6_lease(),
             };
         }
@@ -169,19 +174,11 @@ impl DhcpService {
         }
     }
 
-    fn release_v4_lease(&self, mut _client: DhcpV4Client) -> Result<(), DhcpServiceError> {
-        // TODO
-        // Once mozim has a RELEASE message, we will implement the call here
-        // When implementing the above, make sure no error is returned bc
-        // RELEASE should be non-fatal
-        Ok(())
-    }
-
-    fn release_v6_lease(&self) -> Result<(), DhcpServiceError> {
-        return Err(DhcpServiceError::new(
-            Unimplemented,
-            "IPv6 is not supported yet".to_string(),
-        ));
+    fn release_v6_lease(&self) -> Result<(), DhcpError> {
+        Err(DhcpError::new(
+            ErrorKind::Bug,
+            "not implemented".to_string(),
+        ))
     }
 }
 
