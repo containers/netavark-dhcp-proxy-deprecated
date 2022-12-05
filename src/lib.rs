@@ -101,6 +101,21 @@ pub mod g_rpc {
             }
         }
     }
+
+    #[test]
+    fn test_handle_gw() {
+        use std::str::FromStr;
+        let mut ips: Vec<std::net::Ipv4Addr> = Vec::new();
+        for i in 0..5 {
+            let ip = format!("10.1.{}.1", i);
+            let ipv4 = std::net::Ipv4Addr::from_str(&ip).expect("failed hard");
+            ips.push(ipv4);
+        }
+        let response = handle_ip_vectors(Some(ips));
+        // Len of response should be same as ips
+        assert_eq!(response.len(), 5);
+        assert_eq!(response[0].to_string(), "10.1.0.1");
+    }
 }
 
 // A collection of functions for client side connections to the proxy server
