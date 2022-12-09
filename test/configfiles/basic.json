@@ -2,7 +2,6 @@
   "host_iface": "veth1",
   "container_iface": "veth0",
   "container_mac_addr": "66:c0:05:74:df:d0",
-  "host_mac_addr": "56:dc:88:28:b1:93",
   "domain_name": "example.com",
   "host_name": "foobar",
   "version": 0,

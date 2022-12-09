@@ -2,7 +2,7 @@
 use clap::Parser;
 use log::{debug, error, warn};
 use macaddr::MacAddr;
-use netavark_proxy::cache::LeaseCache;
+use netavark_proxy::cache::{Clear, LeaseCache};
 use netavark_proxy::dhcp_service::DhcpService;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
 use netavark_proxy::g_rpc::{Empty, Lease as NetavarkLease, NetworkConfig, OperationResponse};
@@ -11,6 +11,8 @@ use netavark_proxy::proxy_conf::{
     get_cache_fqname, get_proxy_sock_fqname, DEFAULT_INACTIVITY_TIMEOUT, DEFAULT_TIMEOUT,
 };
 use std::fs;
+use std::fs::File;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -37,16 +39,16 @@ use tonic::{transport::Server, Code, Code::Internal, Request, Response, Status};
 ///    tonic creates its own runtime for each request and mozim trys to make its own runtime inside of
 ///    a runtime.
 ///
-struct NetavarkProxyService {
+struct NetavarkProxyService<W: Write + Clear> {
     // cache is the lease hashmap
-    cache: Arc<Mutex<LeaseCache>>,
+    cache: Arc<Mutex<LeaseCache<W>>>,
     // the timeout for the dora operation
     dora_timeout: isize,
     // channel send-side for resetting the inactivity timeout
     timeout_sender: Arc<Mutex<Sender<i32>>>,
 }
 
-impl NetavarkProxyService {
+impl<W: Write + Clear> NetavarkProxyService<W> {
     fn reset_inactivity_timeout(&self) {
         let sender = self.timeout_sender.clone();
         let locked_sender = match sender.lock() {
@@ -65,7 +67,7 @@ impl NetavarkProxyService {
 
 // gRPC request and response methods
 #[tonic::async_trait]
-impl NetavarkProxy for NetavarkProxyService {
+impl<W: Write + Clear + Send + 'static> NetavarkProxy for NetavarkProxyService<W> {
     /// gRPC connection to get a lease
     async fn setup(
         &self,
@@ -239,8 +241,20 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let uds = UnixListener::bind(&uds_path)?;
     let uds_stream = UnixListenerStream::new(uds);
 
+    // Create the cache file
     let fq_cache_path = get_cache_fqname(optional_run_dir);
-    let cache = match LeaseCache::new(fq_cache_path) {
+    let file = match File::create(&fq_cache_path) {
+        Ok(file) => {
+            debug!("Successfully created leases file: {:?}", fq_cache_path);
+            file
+        }
+        Err(e) => {
+            error!("Exiting. Could not create lease cache file: {:?}", e);
+            return Ok(());
+        }
+    };
+
+    let cache = match LeaseCache::new(file) {
         Ok(c) => Arc::new(Mutex::new(c)),
         Err(e) => {
             log::error!("Could not setup the cache: {}", e.to_string());
@@ -287,10 +301,10 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// ```
 ///
 /// ```
-async fn handle_wakeup(
+async fn handle_wakeup<W: Write + Clear>(
     mut rx: tokio::sync::mpsc::Receiver<i32>,
     timeout_duration: Duration,
-    current_cache: Arc<Mutex<LeaseCache>>,
+    current_cache: Arc<Mutex<LeaseCache<W>>>,
 ) {
     loop {
         match timeout(timeout_duration, rx.recv()).await {
@@ -329,7 +343,7 @@ async fn handle_wakeup(
 /// ```
 ///
 /// ```
-fn is_catch_empty(current_cache: Arc<Mutex<LeaseCache>>) -> bool {
+fn is_catch_empty<W: Write + Clear>(current_cache: Arc<Mutex<LeaseCache<W>>>) -> bool {
     match current_cache.lock() {
         Ok(v) => {
             debug!("cache_len is {}", v.len().to_string());

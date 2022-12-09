@@ -1,45 +1,56 @@
 use crate::g_rpc::{Lease as NetavarkLease, Lease};
-use log::debug;
+use log::{debug, error};
 use std::collections::HashMap;
-use std::fs::OpenOptions;
+use std::fs::File;
 use std::io;
-use std::path::PathBuf;
+use std::io::{Cursor, Write};
 
-/// LeaseCache holds the locked memory map of the mac address to a vector of leases - for multi homing
-/// It also stores a locked path buffer to change the FS cache
 #[derive(Debug)]
-pub struct LeaseCache {
-    mem: HashMap<String, Vec<NetavarkLease>>,
-    path: PathBuf,
+#[allow(dead_code)]
+pub struct ClearError {
+    msg: String,
+}
+/// The Writer on the cache must be clearable so that any new changes can be overwritten
+pub trait Clear {
+    fn clear(&mut self) -> Result<(), ClearError>;
+}
+impl Clear for Cursor<Vec<u8>> {
+    fn clear(&mut self) -> Result<(), ClearError> {
+        self.set_position(0);
+        self.get_mut().clear();
+        Ok(())
+    }
 }
 
-impl LeaseCache {
-    /// Initiate the memory and file system cache. Will create and open the specified directory for
-    /// the cache and create an empty memory map
+impl Clear for File {
+    fn clear(&mut self) -> Result<(), ClearError> {
+        match self.set_len(0) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ClearError { msg: e.to_string() }),
+        }
+    }
+}
+/// The leasing cache holds a in memory record of the leases, and a on file version
+#[derive(Debug)]
+pub struct LeaseCache<W: Write + Clear> {
+    mem: HashMap<String, Vec<NetavarkLease>>,
+    writer: W,
+}
+
+impl<W: Write + Clear> LeaseCache<W> {
+    ///
     ///
     /// # Arguments
-    /// * `dir`: Optional directory string that allows user to define their own cache directory.
-    /// Otherwise the default directory is
     ///
-    /// returns: Result<LeaseCache, Error>
+    /// * `writer`: any type that can has the Write and Clear trait implemented. In production this
+    /// is a file. In development/testing this is a Cursor of bytes
     ///
-    /// On success a new lease cache instance will be returned. On failure an IO error will
-    /// be returned.
-    /// This likely means it could not find the file directory
-    pub fn new(file_path: PathBuf) -> Result<LeaseCache, io::Error> {
-        debug!(
-            "lease cache file: {:?}",
-            file_path.to_str().unwrap_or_default()
-        );
-
-        OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(&file_path)?;
-
+    /// returns: Result<LeaseCache<W>, Error>
+    ///
+    pub fn new(writer: W) -> Result<LeaseCache<W>, io::Error> {
         Ok(LeaseCache {
             mem: HashMap::new(),
-            path: file_path,
+            writer,
         })
     }
 
@@ -52,19 +63,16 @@ impl LeaseCache {
     ///
     /// returns: Result<(), Error>
     ///
-    /// On success this the method will return Ok. On a failure it will return an IO error due to
-    /// not being able to write or read the file system cache
     pub fn add_lease(&mut self, mac_addr: &str, lease: &NetavarkLease) -> Result<(), io::Error> {
         debug!("add lease: {:?}", mac_addr);
+        // Update cache memory with new lease
         let cache = &mut self.mem;
-        // write to the memory cache
-        // HashMap::insert uses a owned reference and key, must clone the referenced mac address and lease
         cache.insert(mac_addr.to_string(), vec![lease.clone()]);
         // write updated memory cache to the file system
         self.save_memory_to_fs()
     }
 
-    /// When lease information changes significantly, update the cache to reflect the changes
+    /// When a lease changes, update the lease in memory and on the writer.
     ///
     /// # Arguments
     ///
@@ -73,8 +81,6 @@ impl LeaseCache {
     ///
     /// returns: Result<(), Error>
     ///
-    /// On success returns Ok. On failure returns an io error, likely means that the it could not
-    /// find the file
     pub fn update_lease(&mut self, mac_addr: &str, lease: NetavarkLease) -> Result<(), io::Error> {
         let cache = &mut self.mem;
         // write to the memory cache
@@ -91,9 +97,7 @@ impl LeaseCache {
     pub fn remove_lease(&mut self, mac_addr: &str) -> Result<Lease, io::Error> {
         debug!("remove lease: {:?}", mac_addr);
         let mem = &mut self.mem;
-        // the remove function uses a reference key, so we borrow and dereference the MadAddress
-        // if !mem.contains_key(mac_addr) {
-        // let lease = match self.mem.get()
+        // Check and see if the lease exists, if not create an empty one
         let lease = match mem.get(mac_addr) {
             None => Lease {
                 t1: 0,
@@ -115,7 +119,11 @@ impl LeaseCache {
             },
             Some(l) => l[0].clone(),
         };
-        mem.remove(mac_addr);
+        // Try and remove the lease. If it doesnt exist, exit with the blank lease
+        if mem.remove(mac_addr).is_none() {
+            return Ok(lease);
+        }
+
         // write updated memory cache to the file system
         match self.save_memory_to_fs() {
             Ok(_) => Ok(lease),
@@ -126,29 +134,30 @@ impl LeaseCache {
     /// Clean up the memory and file system on tear down of the proxy server
     pub fn teardown(&mut self) -> Result<(), io::Error> {
         self.mem.clear();
-        return match OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(&self.path)
-        {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        };
+        self.save_memory_to_fs()
     }
 
     /// Save the memory contents to the file system. This will remove the contents in the file,
     /// then write the memory map to the file. This method will be called any the lease memory cache
     /// changes (new lease, remove lease, update lease)
-    fn save_memory_to_fs(&self) -> io::Result<()> {
-        let path = &self.path;
+    fn save_memory_to_fs(&mut self) -> io::Result<()> {
         let mem = &self.mem;
-        // Write and truncate options set to true to clear the file
-        let file = OpenOptions::new().write(true).truncate(true).open(path)?;
-        serde_json::to_writer(&file, &mem)?;
-        file.sync_all()?;
-        Ok(())
+        let writer = &mut self.writer;
+        // Clear the writer so we can add the old leases
+        match writer.clear() {
+            Ok(_) => {
+                serde_json::to_writer(writer.by_ref(), &mem)?;
+                writer.flush()
+            }
+            Err(e) => {
+                error!(
+                    "Could not clear the writer. Not updating lease information: {:?}",
+                    e
+                );
+                Ok(())
+            }
+        }
     }
-
     // rust validators require both len and is_empty if you define one
     // of them
     pub fn len(&self) -> usize {
@@ -164,44 +173,286 @@ impl LeaseCache {
 
 #[cfg(test)]
 mod cache_tests {
-    #[test]
-    fn new() {
-        // 1. Clean the directory to the lease
+    use crate::cache::LeaseCache;
+    use crate::g_rpc::{Lease as NetavarkLease, Lease};
+    use macaddr::MacAddr6;
+    use rand::{thread_rng, Rng};
+    use std::collections::HashMap;
+    use std::io::Cursor;
 
-        // 2. Create a new cache instance
-        // 3. Check that the file to the cache exists
-        // 4. Clean the directory to the lease
+    // Create a single random ipv4 addr
+    fn random_ipv4() -> String {
+        let mut rng = thread_rng();
+        format!(
+            "{:?}.{:?}.{:?}.{:?}.",
+            rng.gen_range(0..255),
+            rng.gen_range(0..255),
+            rng.gen_range(0..255),
+            rng.gen_range(0..255)
+        )
+    }
+    // Create a single random mac address
+    fn random_macaddr() -> MacAddr6 {
+        let mut rng = thread_rng();
+        MacAddr6::new(
+            rng.gen::<u8>(),
+            rng.gen::<u8>(),
+            rng.gen::<u8>(),
+            rng.gen::<u8>(),
+            rng.gen::<u8>(),
+            rng.gen::<u8>(),
+        )
+    }
+    // Create a single random lease
+    fn random_lease(mac_address: &String) -> Lease {
+        Lease {
+            t1: 0,
+            t2: 3600,
+            lease_time: 0,
+            mtu: 0,
+            domain_name: "example.domain".to_string(),
+            mac_address: String::from(mac_address),
+            siaddr: random_ipv4(),
+            yiaddr: random_ipv4(),
+            srv_id: random_ipv4(),
+            subnet_mask: "".to_string(),
+            broadcast_addr: "".to_string(),
+            dns_servers: vec![],
+            gateways: vec![],
+            ntp_servers: vec![],
+            host_name: "example.host_name".to_string(),
+            is_v6: false,
+        }
+    }
+    // Shared information for all tests
+    struct CacheTestSetup {
+        cache: LeaseCache<Cursor<Vec<u8>>>,
+        macaddrs: Vec<String>,
+        range: u8,
+    }
+
+    impl CacheTestSetup {
+        fn new() -> Self {
+            // Use byte Cursor instead of file for testing
+            let buff = Cursor::new(Vec::new());
+            let cache = match LeaseCache::new(buff) {
+                Ok(cache) => cache,
+                Err(e) => panic!("Could not create leases cache: {:?}", e),
+            };
+
+            // Create a random amount of randomized leases
+            let macaddrs = Vec::new();
+            let mut rng = thread_rng();
+            // Make a random amount of leases
+            let range: u8 = rng.gen_range(0..10);
+
+            CacheTestSetup {
+                cache,
+                macaddrs,
+                range,
+            }
+        }
+    }
+    #[test]
+    fn add_leases() {
+        let setup = CacheTestSetup::new();
+        let mut cache = setup.cache;
+        let mut macaddrs = setup.macaddrs;
+        let range = setup.range;
+
+        for i in 0..range {
+            // Create a random mac address to create a random lease of that mac address
+            let mac_address = random_macaddr().to_string();
+            macaddrs.push(mac_address.clone());
+            let lease = random_lease(&mac_address);
+
+            // Add the lease to the cache
+            cache
+                .add_lease(&mac_address, &lease)
+                .expect("could not add lease to cache");
+
+            // Deserialize the written bytes to compare
+            let lease_bytes = cache.writer.get_ref().as_slice();
+            let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
+                Ok(s) => s,
+                Err(e) => panic!("Error: {:?}", e),
+            };
+
+            // Get the mac address of the lease
+            let macaddr = macaddrs
+                .get(i as usize)
+                .expect("Could not get the mac address of the lease added");
+
+            // Find the lease in the set of deserialized leases
+            let deserialized_lease = s
+                .get(macaddr)
+                .expect("Could not get the mac address from the map")
+                .get(0)
+                .expect("Could not get lease from set of mac addresses")
+                .clone();
+            // Assure that the amount of leases added is correct amount
+            assert_eq!(s.len(), (i + 1) as usize);
+            // Assure that the lease added was correct
+            assert_eq!(lease, deserialized_lease);
+        }
     }
 
     #[test]
-    fn update() {
-        // 1. Clean the directory to the lease
-        // 2. Create a new cache instance
-        // 3. Check that the file to the cache exists
-        // 4. Change the value of that lease and call the update method
-        // 5. Check that the old lease doesnt exist and the new lease is up to date
-        // 6. Clean the directory to the lease
+    fn remove_leases() {
+        let setup = CacheTestSetup::new();
+        let mut cache = setup.cache;
+        let mut macaddrs = setup.macaddrs;
+        let range = setup.range;
+        for i in 0..range {
+            // Create a random mac address to create a random lease of that mac address
+            let mac_address = random_macaddr().to_string();
+            macaddrs.push(mac_address.clone());
+            let lease = random_lease(&mac_address);
+
+            // Add the lease to the cache
+            cache
+                .add_lease(&mac_address, &lease)
+                .expect("could not add lease to cache");
+
+            // Deserialize the written bytes to compare
+            let lease_bytes = cache.writer.get_ref().as_slice();
+            let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
+                Ok(s) => s,
+                Err(e) => panic!("Error: {:?}", e),
+            };
+
+            // Get the mac address of the lease
+            let macaddr = macaddrs
+                .get(i as usize)
+                .expect("Could not get the mac address of the lease added");
+
+            // Find the lease in the set of deserialized leases
+            let deserialized_lease = s
+                .get(macaddr)
+                .expect("Could not get the mac address from the map")
+                .get(0)
+                .expect("Could not get lease from set of mac addresses")
+                .clone();
+            // Assure that the amount of leases added is correct amount
+            assert_eq!(s.len(), (i + 1) as usize);
+            // Assure that the lease added was correct
+            assert_eq!(lease, deserialized_lease);
+        }
+        for i in 0..range {
+            // Deserialize the written bytes to compare
+            let lease_bytes = cache.writer.get_ref().as_slice();
+            let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
+                Ok(s) => s,
+                Err(e) => panic!("Error: {:?}", e),
+            };
+
+            let macaddr = macaddrs
+                .get(i as usize)
+                .expect("Could not get the mac address of the lease added");
+
+            let deserialized_lease = s
+                .get(macaddr)
+                .expect("Could not get the mac address from the map")
+                .get(0)
+                .expect("Could not get lease from set of mac addresses")
+                .clone();
+
+            let removed_lease = cache
+                .remove_lease(macaddr)
+                .unwrap_or_else(|_| panic!("Could not remove {:?} from leases", macaddr));
+            // Assure the lease is no longer in memory
+            assert_eq!(deserialized_lease, removed_lease);
+            assert_eq!(s.len(), (range - i) as usize);
+
+            // Deserialize the cache again to assure the lease is not in the writer
+            let lease_bytes = cache.writer.get_ref().as_slice();
+            let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
+                Ok(s) => s,
+                Err(e) => panic!("Error: {:?}", e),
+            };
+            // There should be no lease under that mac address if the lease was removed
+            let no_lease = s.get(macaddr);
+            assert_eq!(no_lease, None);
+
+            // Remove a lease that does not exist
+            let removed_lease = cache
+                .remove_lease(macaddr)
+                .expect("Could not remove the lease successfully");
+            // The returned lease should be a blank one
+            assert_eq!(removed_lease.mac_address, "".to_string());
+        }
     }
 
     #[test]
-    fn remove() {
-        // 1. Clean the directory to the lease
-        // 2. Create a new cache instance
-        // 3. Check that the file to the cache exists
-        // 4. Add a lease entry to the cache
-        // 5. Check that both leases exist in the cache
-        // 6. Remove the lease
-        // 7. Check to make sure the lease is gone
-        // 8. Clean the directory to the lease
-    }
+    fn update_leases() {
+        let setup = CacheTestSetup::new();
+        let mut cache = setup.cache;
+        let mut macaddrs = setup.macaddrs;
+        let range = setup.range;
 
-    #[test]
-    fn teardown() {
-        // 1. Clean the directory to the lease
-        // 2. Create a new cache instance
-        // 3. Check that the file to the cache exists
-        // 4. Add a lease entry to the cache
-        // 5. tear down the cache
-        // 7. Check to make sure the no leases remain and the fs cache is empty
+        for i in 0..range {
+            // Create a random mac address to create a random lease of that mac address
+            let mac_address = random_macaddr().to_string();
+            macaddrs.push(mac_address.clone());
+            let lease = random_lease(&mac_address);
+
+            // Add the lease to the cache
+            cache
+                .add_lease(&mac_address, &lease)
+                .expect("could not add lease to cache");
+
+            // Deserialize the written bytes to compare
+            let lease_bytes = cache.writer.get_ref().as_slice();
+            let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
+                Ok(s) => s,
+                Err(e) => panic!("Error: {:?}", e),
+            };
+
+            // Get the mac address of the lease
+            let macaddr = macaddrs
+                .get(i as usize)
+                .expect("Could not get the mac address of the lease added");
+
+            // Find the lease in the set of deserialized leases
+            let deserialized_lease = s
+                .get(macaddr)
+                .expect("Could not get the mac address from the map")
+                .get(0)
+                .expect("Could not get lease from set of mac addresses")
+                .clone();
+            // Assure that the amount of leases added is correct amount
+            assert_eq!(s.len(), (i + 1) as usize);
+            // Assure that the lease added was correct
+            assert_eq!(lease, deserialized_lease);
+        }
+        // Update all of the leases
+        for i in 0..range {
+            // Deserialize the written bytes to compare
+            let macaddr = macaddrs
+                .get(i as usize)
+                .expect("Could not get the mac address of the lease added");
+
+            // Create a new random lease with the same mac address
+            let new_lease = random_lease(macaddr);
+
+            cache
+                .update_lease(macaddr, new_lease.clone())
+                .expect("Could not update the lease");
+
+            // Deserialize the cache again to assure the lease is not in the writer
+            let lease_bytes = cache.writer.get_ref().as_slice();
+            let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
+                Ok(s) => s,
+                Err(e) => panic!("Error: {:?}", e),
+            };
+            // There should be no lease under that mac address if the lease was removed
+            let deserialized_updated_lease = s
+                .get(macaddr)
+                .expect("Could not get lease from deserialized map")
+                .get(0)
+                .expect("Could not find lease in set of multi-homing leases");
+
+            assert_eq!(deserialized_updated_lease, &new_lease);
+        }
     }
 }
