@@ -50,10 +50,10 @@ enum Version {
   V6 = 1;
 }
 
-message Ipv4Addr {
+message NvIpv4Addr {
   bytes octets = 1;
 }
 
-message Ipv6Addr {
+message NvIpv6Addr {
   bytes octets = 1;
 }

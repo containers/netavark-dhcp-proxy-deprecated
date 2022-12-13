@@ -88,6 +88,7 @@ impl NetavarkProxy for NetavarkProxyService {
         .join()
         .expect("Error joining thread")
     }
+
     /// When a container is shut down this method should be called. It will clear the lease information
     /// from the caching system.
     async fn teardown(
@@ -95,36 +96,25 @@ impl NetavarkProxy for NetavarkProxyService {
         request: Request<NetworkConfig>,
     ) -> Result<Response<NetavarkLease>, Status> {
         let nc = request.into_inner();
-        let empty_lease = NetavarkLease {
-            t1: 0,
-            t2: 0,
-            lease_time: 0,
-            mtu: 0,
-            domain_name: "".to_string(),
-            mac_address: nc.container_mac_addr.clone(),
-            is_v6: false,
-            siaddr: "".to_string(),
-            yiaddr: "".to_string(),
-            srv_id: "".to_string(),
-            subnet_mask: "".to_string(),
-            broadcast_addr: "".to_string(),
-            dns_servers: vec![],
-            gateways: vec![],
-            ntp_servers: vec![],
-            host_name: "".to_string(),
-        };
 
         let cache = self.0.clone();
         let timeout = self.1;
+
         std::thread::spawn(move || {
-            DhcpService::new(&nc, timeout)?.release_lease()?;
             // Remove the client from the cache dir
-            cache
+            let lease = cache
                 .clone()
                 .lock()
                 .expect("Could not unlock cache. A thread was poisoned")
-                .remove_lease(&nc.container_mac_addr)?;
-            Ok(Response::new(empty_lease))
+                .remove_lease(&nc.container_mac_addr)
+                .map_err(|e| Status::internal(e.to_string()))?;
+
+            // Send the DHCP release message
+            DhcpService::new(&nc, timeout)?
+                .release_lease(&lease)
+                .map_err(|e| Status::internal(e.to_string()))?;
+
+            Ok(Response::new(lease))
         })
         .join()
         .expect("Error joining thread")

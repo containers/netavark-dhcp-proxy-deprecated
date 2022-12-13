@@ -1,5 +1,8 @@
 use ipnet::PrefixLenError;
+use mozim::DhcpError;
+use mozim::ErrorKind::InvalidArgument;
 use netavark::error::NetavarkError;
+use std::net::AddrParseError;
 use std::num::ParseIntError;
 use std::str::FromStr;
 use std::string::ToString;
@@ -59,5 +62,17 @@ impl From<NetavarkError> for ProxyError {
 impl From<PrefixLenError> for ProxyError {
     fn from(cause: PrefixLenError) -> Self {
         ProxyError::new(cause.to_string())
+    }
+}
+
+impl From<AddrParseError> for ProxyError {
+    fn from(e: AddrParseError) -> Self {
+        ProxyError::new(e.to_string())
+    }
+}
+
+impl From<ProxyError> for DhcpError {
+    fn from(e: ProxyError) -> Self {
+        DhcpError::new(InvalidArgument, e.to_string())
     }
 }
