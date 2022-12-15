@@ -378,7 +378,7 @@ function stop_dhcp() {
 }
 
 function start_proxy() {
-  ip netns exec "$NS_NAME" ./bin/netavark-proxy --dir "$TMP_TESTDIR" --uds "$TMP_TESTDIR/socket"  &
+  ip netns exec "$NS_NAME" ./bin/netavark-proxy --dir "$TMP_TESTDIR" --uds "$TMP_TESTDIR"  &
   PROXY_PID=$!
 }
 
@@ -408,7 +408,7 @@ function run_teardown(){
 function run_client(){
   local verb=$1
   local conf=$2
-  run_in_container_netns "./bin/client" --uds "$TMP_TESTDIR/socket" -f "${conf}" "${verb}" "foo"
+  run_in_container_netns "./bin/client" --uds "$TMP_TESTDIR/nv-proxy.sock" -f "${conf}" "${verb}" "foo"
 }
 
 ###################

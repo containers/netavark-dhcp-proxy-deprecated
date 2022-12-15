@@ -4,6 +4,7 @@ use std::error::Error;
 pub mod cache;
 pub mod dhcp_service;
 pub mod ip;
+pub mod proxy_conf;
 pub mod types;
 
 use crate::g_rpc::netavark_proxy_client::NetavarkProxyClient;
@@ -17,16 +18,6 @@ use tokio::net::UnixStream;
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Request, Status};
 use tower::service_fn;
-
-// TODO these constant destinations are not final.
-// Default UDS path for gRPC to communicate on.
-pub const DEFAULT_UDS_PATH: &str = "/run/podman/nv-proxy.sock";
-// Default configuration directory.
-pub const DEFAULT_CONFIG_DIR: &str = "";
-// Default Network configuration path
-pub const DEFAULT_NETWORK_CONFIG: &str = "/dev/stdin";
-// Default epoll wait time before dhcp socket times out
-pub const DEFAULT_TIMEOUT: isize = 8;
 
 #[allow(clippy::unwrap_used)]
 pub mod g_rpc {
@@ -160,7 +151,7 @@ pub mod g_rpc {
         use std::str::FromStr;
         let mut ips: Vec<std::net::Ipv4Addr> = Vec::new();
         for i in 0..5 {
-            let ip = format!("10.1.{}.1", i);
+            let ip = format!("10.1.{i}.1");
             let ipv4 = std::net::Ipv4Addr::from_str(&ip).expect("failed hard");
             ips.push(ipv4);
         }

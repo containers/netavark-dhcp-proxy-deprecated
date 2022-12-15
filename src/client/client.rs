@@ -4,7 +4,7 @@ use std::process;
 use tonic::{Code, Status};
 
 use netavark_proxy::g_rpc::{Lease, NetworkConfig};
-use netavark_proxy::{DEFAULT_NETWORK_CONFIG, DEFAULT_UDS_PATH};
+use netavark_proxy::proxy_conf::{DEFAULT_NETWORK_CONFIG, DEFAULT_UDS_PATH};
 
 pub mod commands;
 
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(r) => r,
         Err(e) => {
             eprintln!("Error: {}", e.message());
-            eprintln!("Error: {}", e);
+            eprintln!("Error: {e}");
             process_failure(e)
         }
     };

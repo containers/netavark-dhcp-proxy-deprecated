@@ -6,9 +6,10 @@ use netavark_proxy::cache::LeaseCache;
 use netavark_proxy::dhcp_service::DhcpService;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
 use netavark_proxy::g_rpc::{Empty, Lease as NetavarkLease, NetworkConfig, OperationResponse};
-use netavark_proxy::{ip, DEFAULT_CONFIG_DIR, DEFAULT_TIMEOUT, DEFAULT_UDS_PATH};
+use netavark_proxy::ip;
+use netavark_proxy::proxy_conf::{get_cache_fqname, get_proxy_sock_fqname, DEFAULT_TIMEOUT};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 #[cfg(unix)]
@@ -71,7 +72,7 @@ impl NetavarkProxy for NetavarkProxyService {
             {
                 return Err(Status::new(
                     Internal,
-                    format!("Error caching the lease: {}", e),
+                    format!("Error caching the lease: {e}"),
                 ));
             }
 
@@ -149,7 +150,7 @@ struct Opts {
 /// Handle SIGINT signal.
 ///
 /// Will wait until process receives a SIGINT/ ctrl+c signal and then clean up and shut down
-async fn handle_signal(uds_path: String) {
+async fn handle_signal(uds_path: PathBuf) {
     tokio::spawn(async move {
         // Handle signal hooks with expect, it is important these are setup so data is not corrupted
         let mut sigterm = signal(SignalKind::terminate()).expect("Could not set up SIGTERM hook");
@@ -176,13 +177,15 @@ async fn handle_signal(uds_path: String) {
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::builder().format_timestamp(None).init();
     let opts = Opts::parse();
-
-    // where we store the cache file
-    let conf_dir = opts.dir.unwrap_or_else(|| DEFAULT_CONFIG_DIR.to_string());
-    // location of the grpc port
-    let uds_path = opts.uds.unwrap_or_else(|| DEFAULT_UDS_PATH.to_string());
-    // timeout time if no leases are found
+    let optional_run_dir = opts.dir.as_deref();
     let timeout = opts.timeout.unwrap_or(DEFAULT_TIMEOUT);
+
+    let uds_path = get_proxy_sock_fqname(optional_run_dir);
+    debug!(
+        "socket path: {}",
+        &uds_path.clone().into_os_string().into_string().unwrap()
+    );
+
     // Create a new uds socket path
     match Path::new(&uds_path).parent() {
         None => {
@@ -193,23 +196,24 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // Watch for signals after the uds path has been created, so that the socket can be closed.
     handle_signal(uds_path.clone()).await;
+
     // Bind to the UDS socket for gRPC calls
     let uds = UnixListener::bind(&uds_path)?;
     let uds_stream = UnixListenerStream::new(uds);
 
-    let cache = match LeaseCache::new(conf_dir) {
+    let fq_cache_path = get_cache_fqname(optional_run_dir);
+    let cache = match LeaseCache::new(fq_cache_path) {
         Ok(c) => Arc::new(Mutex::new(c)),
         Err(e) => {
             log::error!("Could not setup the cache: {}", e.to_string());
             return Ok(());
         }
     };
-    // let dhcp_service = DhcpService::new()
+
     let netavark_proxy_service = NetavarkProxyService(cache, timeout);
     Server::builder()
         .add_service(NetavarkProxyServer::new(netavark_proxy_service))
         .serve_with_incoming(uds_stream)
         .await?;
     Ok(())
-    //Clean up UDS on exit
 }
