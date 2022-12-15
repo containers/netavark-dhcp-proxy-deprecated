@@ -1,5 +1,3 @@
-// use netavark::network::core_utils::CoreUtils;
-
 /*
    This file is intended to support netavark-dhcp-proxy configuring the IP information
    that it got from the dhcp server.
@@ -11,9 +9,9 @@ use crate::g_rpc::{Lease as NetavarkLease, Lease};
 use crate::types::{CustomErr, ProxyError};
 use ipnet::IpNet;
 use log::debug;
-use netavark::network::core_utils;
-use netavark::network::netlink;
-use netavark::network::netlink::Socket;
+use nv::network::core_utils;
+use nv::network::netlink;
+use nv::network::netlink::Socket;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 

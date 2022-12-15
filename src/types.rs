@@ -1,7 +1,7 @@
 use ipnet::PrefixLenError;
 use mozim::DhcpError;
 use mozim::ErrorKind::InvalidArgument;
-use netavark::error::NetavarkError;
+use nv::error::NetavarkError;
 use std::net::AddrParseError;
 use std::num::ParseIntError;
 use std::str::FromStr;
