@@ -21,7 +21,7 @@ EOF
 
        run_setup "$input_config"
        # Read the lease file
-       run_helper cat "$TMP_TESTDIR/nv-leases"
+       run_helper cat "$TMP_TESTDIR/nv-proxy.lease"
        before=$output
        # Check that our mac address is in the lease file which
        # ensures that it was added
@@ -29,7 +29,7 @@ EOF
        assert "$output" == "true"
        # Run teardown
        run_teardown "$input_config"
-       run_helper cat "$TMP_TESTDIR/nv-leases"
+       run_helper cat "$TMP_TESTDIR/nv-proxy.lease"
        # Check that the length of the lease file is now zero
        run_helper jq ". | length" <<<"$output"
        assert "$output" == 0

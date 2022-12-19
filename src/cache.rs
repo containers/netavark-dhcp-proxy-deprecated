@@ -3,10 +3,7 @@ use log::debug;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io;
-use std::path::{Path, PathBuf};
-
-/// Path to the lease json cache
-pub const DEFAULT_CACHE_DIR: &str = "/var/tmp/";
+use std::path::PathBuf;
 
 /// LeaseCache holds the locked memory map of the mac address to a vector of leases - for multi homing
 /// It also stores a locked path buffer to change the FS cache
@@ -29,15 +26,20 @@ impl LeaseCache {
     /// On success a new lease cache instance will be returned. On failure an IO error will
     /// be returned.
     /// This likely means it could not find the file directory
-    pub fn new(dir: String) -> Result<LeaseCache, io::Error> {
-        let fq_path = Path::new(&dir).join("nv-leases");
-        debug!("lease cache file: {:?}", fq_path.to_str().unwrap_or(""));
+    pub fn new(file_path: PathBuf) -> Result<LeaseCache, io::Error> {
+        debug!(
+            "lease cache file: {:?}",
+            file_path.to_str().unwrap_or_default()
+        );
 
-        OpenOptions::new().write(true).create(true).open(&fq_path)?;
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&file_path)?;
 
         Ok(LeaseCache {
             mem: HashMap::new(),
-            path: fq_path,
+            path: file_path,
         })
     }
 
@@ -145,15 +147,6 @@ impl LeaseCache {
         serde_json::to_writer(&file, &mem)?;
         file.sync_all()?;
         Ok(())
-    }
-}
-
-impl Default for LeaseCache {
-    fn default() -> Self {
-        LeaseCache {
-            mem: HashMap::<String, Vec<NetavarkLease>>::new(),
-            path: PathBuf::from(DEFAULT_CACHE_DIR),
-        }
     }
 }
 

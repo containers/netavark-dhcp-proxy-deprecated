@@ -82,7 +82,7 @@ fn handle_gws(g: Vec<String>, netmask: &str) -> Result<Vec<IpNet>, ProxyError> {
         };
         let gw = match IpNet::new(IpAddr::from(ip), prefix as u8) {
             Ok(r) => r,
-            Err(e) => return Err(ProxyError::new(format!("{}:'{}'", e, route))),
+            Err(e) => return Err(ProxyError::new(format!("{e}:'{route}'"))),
         };
         gws.push(gw);
     }
@@ -116,7 +116,7 @@ impl Address<Ipv4Addr> for MacVLAN {
         let address = match IpAddr::from_str(&l.yiaddr) {
             Ok(a) => a,
             Err(e) => {
-                return Err(ProxyError::new(format!("bad address: {}", e)));
+                return Err(ProxyError::new(format!("bad address: {e}")));
             }
         };
         let gateways = match handle_gws(l.gateways.clone(), &l.subnet_mask) {
