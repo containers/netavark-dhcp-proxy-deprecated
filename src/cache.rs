@@ -148,6 +148,18 @@ impl LeaseCache {
         file.sync_all()?;
         Ok(())
     }
+
+    // rust validators require both len and is_empty if you define one
+    // of them
+    pub fn len(&self) -> usize {
+        self.mem.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        if self.len() < 1 {
+            return true;
+        }
+        false
+    }
 }
 
 #[cfg(test)]

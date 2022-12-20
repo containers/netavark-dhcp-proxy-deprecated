@@ -17,13 +17,18 @@ DHCP and MacVLAN networking.
 
 ## GLOBAL OPTIONS
 
+#### **--activity-timeout, -a**
+Time in seconds when the proxy should exit if it has no leases.  The default time
+is *300* seconds. A value of *0* disables the activity timeout.
+
 #### **--dir**=*path*
 
 The directory option is a path to store the lease backup files. The default is
-*/var/tmp/nv-proxy*.
+*/run/podman/*.  The lease name is *nv-proxy.leases*.
 
 #### **--uds**
-Set the unix domain socket path instead of using the default.
+Set the unix domain socket directory instead of using the default.  The default is
+*/run/podman*.  The socket name is *nv-proxy.sock*.
 
 #### **--help**, **-h**
 

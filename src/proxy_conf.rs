@@ -20,6 +20,8 @@ pub const DEFAULT_TIMEOUT: isize = 8;
 pub const PROXY_SOCK_NAME: &str = "nv-proxy.sock";
 // Where leases are stored on the filesystem
 pub const CACHE_FILE_NAME: &str = "nv-proxy.lease";
+// Seconds until the service should exit
+pub const DEFAULT_INACTIVITY_TIMEOUT: u64 = 300;
 
 /// Get the RUN_DIR where the proxy cache and socket
 /// are stored
