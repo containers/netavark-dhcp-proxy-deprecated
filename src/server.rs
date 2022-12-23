@@ -7,7 +7,9 @@ use netavark_proxy::dhcp_service::DhcpService;
 use netavark_proxy::g_rpc::netavark_proxy_server::{NetavarkProxy, NetavarkProxyServer};
 use netavark_proxy::g_rpc::{Empty, Lease as NetavarkLease, NetworkConfig, OperationResponse};
 use netavark_proxy::ip;
-use netavark_proxy::proxy_conf::{get_cache_fqname, get_proxy_sock_fqname, DEFAULT_TIMEOUT};
+use netavark_proxy::proxy_conf::{
+    get_cache_fqname, get_proxy_sock_fqname, DEFAULT_INACTIVITY_TIMEOUT, DEFAULT_TIMEOUT,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -16,6 +18,9 @@ use std::sync::{Arc, Mutex};
 use tokio::net::UnixListener;
 #[cfg(unix)]
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
+use tokio::time::{timeout, Duration};
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{transport::Server, Code, Code::Internal, Request, Response, Status};
@@ -32,7 +37,31 @@ use tonic::{transport::Server, Code, Code::Internal, Request, Response, Status};
 ///    tonic creates its own runtime for each request and mozim trys to make its own runtime inside of
 ///    a runtime.
 ///
-struct NetavarkProxyService(Arc<Mutex<LeaseCache>>, isize);
+struct NetavarkProxyService {
+    // cache is the lease hashmap
+    cache: Arc<Mutex<LeaseCache>>,
+    // the timeout for the dora operation
+    dora_timeout: isize,
+    // channel send-side for resetting the inactivity timeout
+    timeout_sender: Arc<Mutex<Sender<i32>>>,
+}
+
+impl NetavarkProxyService {
+    fn reset_inactivity_timeout(&self) {
+        let sender = self.timeout_sender.clone();
+        let locked_sender = match sender.lock() {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("{}", e.to_string());
+                return;
+            }
+        };
+        match locked_sender.try_send(1) {
+            Ok(..) => {}
+            Err(e) => log::error!("{}", e.to_string()),
+        }
+    }
+}
 
 // gRPC request and response methods
 #[tonic::async_trait]
@@ -43,9 +72,11 @@ impl NetavarkProxy for NetavarkProxyService {
         request: Request<NetworkConfig>,
     ) -> Result<Response<NetavarkLease>, Status> {
         debug!("Request from client {:?}", request.remote_addr());
+        // notify server of activity
+        self.reset_inactivity_timeout();
 
-        let cache = self.0.clone();
-        let timeout = self.1;
+        let cache = self.cache.clone();
+        let timeout = self.dora_timeout;
         //Spawn a new thread to avoid tokio runtime issues
         std::thread::spawn(move || {
             // Set up some common values
@@ -96,10 +127,12 @@ impl NetavarkProxy for NetavarkProxyService {
         &self,
         request: Request<NetworkConfig>,
     ) -> Result<Response<NetavarkLease>, Status> {
+        // notify server of activity
+        self.reset_inactivity_timeout();
         let nc = request.into_inner();
 
-        let cache = self.0.clone();
-        let timeout = self.1;
+        let cache = self.cache.clone();
+        let timeout = self.dora_timeout;
 
         std::thread::spawn(move || {
             // Remove the client from the cache dir
@@ -124,7 +157,7 @@ impl NetavarkProxy for NetavarkProxyService {
     /// On teardown of the proxy the cache will be cleared gracefully.
     async fn clean(&self, request: Request<Empty>) -> Result<Response<OperationResponse>, Status> {
         log::debug!("Request from client: {:?}", request.remote_addr());
-        self.0
+        self.cache
             .clone()
             .lock()
             .expect("Could not unlock cache. A thread was poisoned")
@@ -145,6 +178,9 @@ struct Opts {
     /// optional time in seconds to time out after looking for a lease
     #[clap(short, long)]
     timeout: Option<isize>,
+    /// activity timeout
+    #[clap(short, long)]
+    activity_timout: Option<u64>,
 }
 
 /// Handle SIGINT signal.
@@ -178,7 +214,9 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::builder().format_timestamp(None).init();
     let opts = Opts::parse();
     let optional_run_dir = opts.dir.as_deref();
-    let timeout = opts.timeout.unwrap_or(DEFAULT_TIMEOUT);
+    let dora_timeout = opts.timeout.unwrap_or(DEFAULT_TIMEOUT);
+    let inactivity_timeout =
+        Duration::from_secs(opts.activity_timout.unwrap_or(DEFAULT_INACTIVITY_TIMEOUT));
 
     let uds_path = get_proxy_sock_fqname(optional_run_dir);
     debug!(
@@ -210,10 +248,96 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let netavark_proxy_service = NetavarkProxyService(cache, timeout);
-    Server::builder()
+    // Create send and receive channels for activity timeout. If anything is
+    // sent by the tx side, the inactivity timeout is reset
+    let (activity_timeout_tx, activity_timeout_rx) = mpsc::channel(5);
+    let netavark_proxy_service = NetavarkProxyService {
+        cache: cache.clone(),
+        dora_timeout,
+        timeout_sender: Arc::new(Mutex::new(activity_timeout_tx.clone())),
+    };
+
+    let server = Server::builder()
         .add_service(NetavarkProxyServer::new(netavark_proxy_service))
-        .serve_with_incoming(uds_stream)
-        .await?;
+        .serve_with_incoming(uds_stream);
+
+    tokio::pin!(server);
+
+    tokio::select! {
+        //  a timeout duration of 0 means NEVER
+        _ = handle_wakeup(activity_timeout_rx, inactivity_timeout, cache.clone()), if inactivity_timeout.as_secs() > 0  => {},
+        _ = &mut server => {},
+    };
+
+    fs::remove_file(uds_path);
     Ok(())
+}
+
+/// manages the timeout lifecycle for the proxy server based on a defined timeout.
+///
+/// # Arguments
+///
+/// * `rx`: receive side of channel
+/// * `timeout_duration`: time duration in seconds
+///
+/// returns: ()
+///
+/// # Examples
+///
+/// ```
+///
+/// ```
+async fn handle_wakeup(
+    mut rx: tokio::sync::mpsc::Receiver<i32>,
+    timeout_duration: Duration,
+    current_cache: Arc<Mutex<LeaseCache>>,
+) {
+    loop {
+        match timeout(timeout_duration, rx.recv()).await {
+            Ok(Some(_)) => {
+                debug!("timeout timer reset")
+            }
+            Ok(None) => {
+                println!("timeout channel closed");
+                break;
+            }
+            Err(_) => {
+                // only 'exit' if the timeout is met AND there are no leases
+                // if we do not exit, the activity_timeout is reset
+                if is_catch_empty(current_cache.clone()) {
+                    println!(
+                        "timeout met: exiting after {} secs of inactivity",
+                        timeout_duration.as_secs()
+                    );
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/// get_cache_len returns the number of leases in the hashmap in memory
+///
+/// # Arguments
+///
+/// * `current_cache`:
+///
+/// returns: usize
+///
+/// # Examples
+///
+/// ```
+///
+/// ```
+fn is_catch_empty(current_cache: Arc<Mutex<LeaseCache>>) -> bool {
+    match current_cache.lock() {
+        Ok(v) => {
+            debug!("cache_len is {}", v.len().to_string());
+            v.is_empty()
+        }
+        Err(e) => {
+            log::error!("{}", e.to_string());
+            false
+        }
+    }
 }
