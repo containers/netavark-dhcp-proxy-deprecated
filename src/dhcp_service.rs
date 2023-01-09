@@ -1,4 +1,5 @@
 use crate::dhcp_service::DhcpServiceErrorKind::{Bug, InvalidArgument, NoLease, Timeout};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use crate::g_rpc::{Lease as NetavarkLease, Lease, NetworkConfig};
 use log::warn;
@@ -42,6 +43,32 @@ pub struct DhcpService {
     client: Option<DhcpClient>,
     network_config: NetworkConfig,
     timeout: isize,
+}
+
+trait IP4Conv {
+    fn from(self) -> Ipv4Addr;
+}
+
+impl IP4Conv for IpAddr {
+    fn from(self) -> Ipv4Addr {
+        if let IpAddr::V4(ipv4) = self {
+            return ipv4;
+        }
+        Ipv4Addr::from(0)
+    }
+}
+
+trait IP6Conv {
+    fn from(self) -> Ipv6Addr;
+}
+
+impl IP6Conv for IpAddr {
+    fn from(self) -> Ipv6Addr {
+        if let IpAddr::V6(ipv6) = self {
+            return ipv6;
+        }
+        Ipv6Addr::from(0)
+    }
 }
 
 impl DhcpService {

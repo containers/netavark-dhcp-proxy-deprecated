@@ -35,6 +35,7 @@ macaddr = "1.0.1"
 nv = { package = "netavark", version  = "1.4"}
 rtnetlink = "0.11.0" 
 ipnet = { version = "2", features = ["serde"] }
+rand = "0.8.5"
 
 [dev-dependencies]
 once_cell = "1.8.0"

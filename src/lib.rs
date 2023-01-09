@@ -1,3 +1,5 @@
+extern crate core;
+
 use crate::g_rpc::{Lease, NetworkConfig};
 use std::error::Error;
 
