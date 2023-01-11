@@ -60,9 +60,7 @@ elif [[ "$1" == "--setup" ]]; then
     echo "+ Loading ./contrib/cirrus/lib.sh" > /dev/stderr
     source ./contrib/cirrus/lib.sh
     echo "+ Mimicking .cirrus.yml build_task" > /dev/stderr
-    make install.tools
-    make binaries
-    make docs
+    make all
     echo "+ Running environment setup" > /dev/stderr
     ./contrib/cirrus/setup_environment.sh
 else

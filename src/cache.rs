@@ -237,7 +237,7 @@ mod cache_tests {
             let buff = Cursor::new(Vec::new());
             let cache = match LeaseCache::new(buff) {
                 Ok(cache) => cache,
-                Err(e) => panic!("Could not create leases cache: {:?}", e),
+                Err(e) => panic!("Could not create leases cache: {e:?}"),
             };
 
             // Create a random amount of randomized leases
@@ -275,7 +275,7 @@ mod cache_tests {
             let lease_bytes = cache.writer.get_ref().as_slice();
             let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
                 Ok(s) => s,
-                Err(e) => panic!("Error: {:?}", e),
+                Err(e) => panic!("Error: {e:?}"),
             };
 
             // Get the mac address of the lease
@@ -318,7 +318,7 @@ mod cache_tests {
             let lease_bytes = cache.writer.get_ref().as_slice();
             let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
                 Ok(s) => s,
-                Err(e) => panic!("Error: {:?}", e),
+                Err(e) => panic!("Error: {e:?}"),
             };
 
             // Get the mac address of the lease
@@ -343,7 +343,7 @@ mod cache_tests {
             let lease_bytes = cache.writer.get_ref().as_slice();
             let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
                 Ok(s) => s,
-                Err(e) => panic!("Error: {:?}", e),
+                Err(e) => panic!("Error: {e:?}"),
             };
 
             let macaddr = macaddrs
@@ -359,7 +359,7 @@ mod cache_tests {
 
             let removed_lease = cache
                 .remove_lease(macaddr)
-                .unwrap_or_else(|_| panic!("Could not remove {:?} from leases", macaddr));
+                .unwrap_or_else(|_| panic!("Could not remove {macaddr:?} from leases"));
             // Assure the lease is no longer in memory
             assert_eq!(deserialized_lease, removed_lease);
             assert_eq!(s.len(), (range - i) as usize);
@@ -368,7 +368,7 @@ mod cache_tests {
             let lease_bytes = cache.writer.get_ref().as_slice();
             let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
                 Ok(s) => s,
-                Err(e) => panic!("Error: {:?}", e),
+                Err(e) => panic!("Error: {e:?}"),
             };
             // There should be no lease under that mac address if the lease was removed
             let no_lease = s.get(macaddr);
@@ -405,7 +405,7 @@ mod cache_tests {
             let lease_bytes = cache.writer.get_ref().as_slice();
             let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
                 Ok(s) => s,
-                Err(e) => panic!("Error: {:?}", e),
+                Err(e) => panic!("Error: {e:?}"),
             };
 
             // Get the mac address of the lease
@@ -443,7 +443,7 @@ mod cache_tests {
             let lease_bytes = cache.writer.get_ref().as_slice();
             let s: HashMap<String, Vec<NetavarkLease>> = match serde_json::from_slice(lease_bytes) {
                 Ok(s) => s,
-                Err(e) => panic!("Error: {:?}", e),
+                Err(e) => panic!("Error: {e:?}"),
             };
             // There should be no lease under that mac address if the lease was removed
             let deserialized_updated_lease = s

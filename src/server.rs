@@ -10,12 +10,14 @@ use netavark_proxy::ip;
 use netavark_proxy::proxy_conf::{
     get_cache_fqname, get_proxy_sock_fqname, DEFAULT_INACTIVITY_TIMEOUT, DEFAULT_TIMEOUT,
 };
-use std::fs;
 use std::fs::File;
 use std::io::Write;
+use std::os::unix::io::FromRawFd;
+use std::os::unix::net::UnixListener as stdUnixListener;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use std::{env, fs};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 #[cfg(unix)]
@@ -237,8 +239,22 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Watch for signals after the uds path has been created, so that the socket can be closed.
     handle_signal(uds_path.clone()).await;
 
-    // Bind to the UDS socket for gRPC calls
-    let uds = UnixListener::bind(&uds_path)?;
+    // check if the UDS is a systemd socket activated service.  if it is,
+    // then systemd hands this over to us on FD 3.
+    let uds: UnixListener = match env::var("LISTEN_FDS") {
+        Ok(effds) => {
+            if effds != "1" {
+                error!("Received more than one FD from systemd");
+                return Ok(());
+            }
+            let systemd_socket = unsafe { stdUnixListener::from_raw_fd(3) };
+            systemd_socket.set_nonblocking(true)?;
+            UnixListener::from_std(systemd_socket)?
+        }
+        // Use the standard socket approach
+        Err(..) => UnixListener::bind(&uds_path)?,
+    };
+
     let uds_stream = UnixListenerStream::new(uds);
 
     // Create the cache file
