@@ -1,5 +1,4 @@
 /target
-Cargo.lock
 .idea/
 proto-build/netavark_proxy.rs
 /bin
