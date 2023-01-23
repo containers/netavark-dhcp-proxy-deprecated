@@ -103,7 +103,7 @@ impl<W: Write + Clear + Send + 'static> NetavarkProxy for NetavarkProxyService<W
             if let Err(e) = cache
                 .lock()
                 .expect("Could not unlock cache. A thread was poisoned")
-                .add_lease(&mac_addr, &lease)
+                .upsert_lease(&mac_addr, &lease)
             {
                 return Err(Status::new(
                     Internal,

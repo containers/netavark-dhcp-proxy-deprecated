@@ -54,7 +54,7 @@ impl<W: Write + Clear> LeaseCache<W> {
         })
     }
 
-    /// Add a new lease to a memory and file system cache
+    /// Insert or update a lease in the cache
     ///
     /// # Arguments
     ///
@@ -63,30 +63,16 @@ impl<W: Write + Clear> LeaseCache<W> {
     ///
     /// returns: Result<(), Error>
     ///
-    pub fn add_lease(&mut self, mac_addr: &str, lease: &NetavarkLease) -> Result<(), io::Error> {
-        debug!("add lease: {:?}", mac_addr);
+    pub fn upsert_lease(&mut self, mac_addr: &str, lease: &NetavarkLease) -> Result<(), io::Error> {
         // Update cache memory with new lease
         let cache = &mut self.mem;
-        cache.insert(mac_addr.to_string(), vec![lease.clone()]);
+        if let None = cache.insert(mac_addr.to_string(), vec![lease.clone()]) {
+            debug!("add lease: {:?}", mac_addr);
+            return self.save_memory_to_fs();
+        };
+        debug!("updating {:?} lease", mac_addr);
+        return self.save_memory_to_fs();
         // write updated memory cache to the file system
-        self.save_memory_to_fs()
-    }
-
-    /// When a lease changes, update the lease in memory and on the writer.
-    ///
-    /// # Arguments
-    ///
-    /// * `mac_addr`: Mac address of the container
-    /// * `lease`: Newest lease information
-    ///
-    /// returns: Result<(), Error>
-    ///
-    pub fn update_lease(&mut self, mac_addr: &str, lease: NetavarkLease) -> Result<(), io::Error> {
-        let cache = &mut self.mem;
-        // write to the memory cache
-        cache.insert(mac_addr.to_string(), vec![lease]);
-        // write updated memory cache to the file system
-        self.save_memory_to_fs()
     }
 
     /// When a singular container is taken down. Remove that lease from the cache memory and fs
@@ -268,8 +254,12 @@ mod cache_tests {
 
             // Add the lease to the cache
             cache
-                .add_lease(&mac_address, &lease)
+                .upsert_lease(&mac_address, &lease)
                 .expect("could not add lease to cache");
+
+            cache
+                .upsert_lease(&mac_address, &lease)
+                .expect("panicked while adding an identical lease");
 
             // Deserialize the written bytes to compare
             let lease_bytes = cache.writer.get_ref().as_slice();
@@ -311,8 +301,12 @@ mod cache_tests {
 
             // Add the lease to the cache
             cache
-                .add_lease(&mac_address, &lease)
+                .upsert_lease(&mac_address, &lease)
                 .expect("could not add lease to cache");
+
+            cache
+                .upsert_lease(&mac_address, &lease)
+                .expect("panicked while adding an identical lease");
 
             // Deserialize the written bytes to compare
             let lease_bytes = cache.writer.get_ref().as_slice();
@@ -398,7 +392,7 @@ mod cache_tests {
 
             // Add the lease to the cache
             cache
-                .add_lease(&mac_address, &lease)
+                .upsert_lease(&mac_address, &lease)
                 .expect("could not add lease to cache");
 
             // Deserialize the written bytes to compare
@@ -436,7 +430,7 @@ mod cache_tests {
             let new_lease = random_lease(macaddr);
 
             cache
-                .update_lease(macaddr, new_lease.clone())
+                .upsert_lease(macaddr, &new_lease)
                 .expect("Could not update the lease");
 
             // Deserialize the cache again to assure the lease is not in the writer
