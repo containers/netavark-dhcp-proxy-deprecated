@@ -10,6 +10,7 @@ pub mod proxy_conf;
 pub mod types;
 
 use crate::g_rpc::netavark_proxy_client::NetavarkProxyClient;
+
 use http::Uri;
 use log::debug;
 use std::fs::File;
@@ -216,6 +217,7 @@ impl NetworkConfig {
     /// ```
     ///
     /// ```
+
     pub async fn get_lease(self, p: &str) -> Result<Lease, Status> {
         let mut client = NetworkConfig::get_client(p.to_string()).await?;
         let lease = match client.setup(Request::new(self)).await {
@@ -249,6 +251,7 @@ impl NetworkConfig {
         Ok(lease)
     }
 }
+
 trait VectorConv {
     fn to_v4_addrs(&self) -> Result<Option<Vec<Ipv4Addr>>, AddrParseError>;
     fn to_v6_addrs(&self) -> Result<Option<Vec<Ipv6Addr>>, AddrParseError>;

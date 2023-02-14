@@ -17,12 +17,13 @@ path = "src/client/client.rs"
 [dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.83"
-mozim = "0.1"
+mozim = "0.2.1"
 tonic = "0.8"
 prost = "0.11"
-futures-channel="0.3"
-futures-core = "0.3"
-futures-util = "0.3"
+futures = "0.3.26"
+futures-channel="0.3.26"
+futures-core = "0.3.26"
+futures-util = "0.3.26"
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "sync", "time", "net", "fs", "signal"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tower = { version = "0.4" }
