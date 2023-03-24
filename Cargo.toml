@@ -32,7 +32,7 @@ clap = { version = "3.0.12", features = ["derive"] }
 env_logger = "0.10.0"
 http = "0.2.8"
 macaddr = "1.0.1"
-nv = { package = "netavark", version  = "1.4"}
+nv = { package = "netavark", version  = "1.5"}
 rtnetlink = "0.12.0" 
 ipnet = { version = "2", features = ["serde"] }
 rand = "0.8.5"
