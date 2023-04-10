@@ -1,5 +1,8 @@
 # Netavark DHCP Proxy Server
 
+## This prroject is now deprecated.  It has been merged with [netavark](https://github.com/containers/netavark)
+
+
 ### Short Summary
 
 Adds DHCP MacVLAN functionality to the [netavark](https://github.com/containers/netavark) networking stack.  It's primary
